@@ -37,3 +37,7 @@ These tests establish the tested paths and account conditions only. API presence
 ## Release protection
 
 Public source is a fresh export, not the private development repository's commit history. Installed libraries remain separate dependencies. The default action authority is intentionally broad for a trusted local owner host; see SECURITY.md. A release can be stopped or replaced, but already downloaded public information cannot be recalled.
+
+## Intentional recovery tests
+
+[Recovery test results](RECOVERY-TESTS.md) record actual process/network/update failures. Receiver auto-restart and the nonterminal reauthentication entry did not meet the post-setup requirement. Existing data and permissions were preserved and the receiver was restored by the agent. These are product-completion blockers, not passing tests.
