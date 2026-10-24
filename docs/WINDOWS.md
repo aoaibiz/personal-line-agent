@@ -22,6 +22,8 @@ uv sync --frozen --python 3.11
 
 実接続を確認した後、[運用手順](OPERATIONS.md)の`stage`と`activate`で、データとは別の管理フォルダーへ不変のリリースを作ります。WindowsのPythonパスは`FIRST_RELEASE\.venv\Scripts\python.exe`です。バックエンド更新のたびにMCP設定を書き換えません。
 
+管理フォルダーは深く長いパスを避けます。リリースIDと依存ライブラリの階層が加わるため、Windowsのパス長制限で初期化に失敗する場合があります。
+
 ```powershell
 codex mcp add personal-line -- C:\absolute\MANAGED_HOME\releases\FIRST_RELEASE\.venv\Scripts\python.exe -I -B -m line_agent.bridge --home C:\absolute\MANAGED_HOME --root C:\absolute\ACCOUNT_ROOT --account personal
 ```

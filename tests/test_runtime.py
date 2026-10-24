@@ -147,7 +147,13 @@ def test_failed_stage_can_retry_without_deleting_or_selecting(tmp_path, monkeypa
         runtime.stage(tmp_path, source)
     target = next((tmp_path / 'releases').iterdir())
     inode = target.stat().st_ino
-    monkeypatch.setattr(runtime.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=0))
+    def installed(*args, **kwargs):
+        if args[0][0] == '/fixture/uv':
+            python = runtime.release_python(target)
+            python.parent.mkdir(parents=True, exist_ok=True)
+            python.write_text('fixture')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(runtime.subprocess, 'run', installed)
     result = runtime.stage(tmp_path, source)
     assert result['state'] == 'ready'
     assert target.stat().st_ino == inode

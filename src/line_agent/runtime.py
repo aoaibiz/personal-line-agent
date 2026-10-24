@@ -193,6 +193,14 @@ def stage(home, source):
         if result.returncode:
             write_json(target / "release.json", {"id": release, "state": "install_failed"})
             raise RuntimeFailure("release_install_failed")
+        if os.name == "nt":
+            # uv uses the token's default owner when creating its launcher.
+            # Normalize only this just-installed, trusted candidate; reused
+            # ready releases still pass release_path's strict validation.
+            try:
+                private_file(release_python(target))
+            except (PermissionError, ValueError):
+                raise RuntimeFailure("release_python_not_private") from None
         bootstrap = subprocess.run([str(release_python(target)), "-I", "-c",
             "import line_agent.bridge, line_agent.server, line_agent.lifecycle"],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

@@ -60,14 +60,23 @@ def _windows_descriptor():
         inherit = win32security.OBJECT_INHERIT_ACE | win32security.CONTAINER_INHERIT_ACE
         acl.AddAccessAllowedAceEx(acl.GetAclRevision(), inherit, ntsecuritycon.FILE_ALL_ACCESS, sid)
     descriptor = win32security.SECURITY_DESCRIPTOR()
+    # Elevated tokens can default new objects to the Administrators group.
+    # Bind our new private objects to the actual user, as strict reads require.
+    descriptor.SetSecurityDescriptorOwner(user, False)
     descriptor.SetSecurityDescriptorDacl(1, acl, 0)
     return descriptor
 
 
 def _windows_acl(path: Path) -> None:
     import win32security
-    win32security.SetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION |
-        win32security.PROTECTED_DACL_SECURITY_INFORMATION, _windows_descriptor())
+    descriptor = _windows_descriptor()
+    existing = win32security.GetFileSecurity(str(path), win32security.OWNER_SECURITY_INFORMATION)
+    flags = win32security.DACL_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION
+    if existing.GetSecurityDescriptorOwner() != descriptor.GetSecurityDescriptorOwner():
+        # Only explicit initialization reaches this with a different owner:
+        # strict callers validate the existing owner before calling us.
+        flags |= win32security.OWNER_SECURITY_INFORMATION
+    win32security.SetFileSecurity(str(path), flags, descriptor)
 
 
 def _windows_acl_private(path: Path) -> bool:
