@@ -31,6 +31,7 @@ def parser():
     login.add_argument("--repair-e2ee", action="store_true",
                        help="本人のQR確認で暗号化メッセージ用の鍵を取得し直す")
     commands.add_parser("status")
+    commands.add_parser("doctor", help="実接続・保存の整合性を診断。秘密や本文は出さない")
     commands.add_parser("configure-operations", help="所有者/実行エージェント専用：通常操作の設定JSONを標準入力から反映")
     assist_config = commands.add_parser("assist-config", help="本人指定の履歴・分類を返信案へ接続")
     assist_config.add_argument("--corpus", type=Path, required=True)
@@ -130,6 +131,9 @@ def run(args):
             on_qr=print_qr, on_pin=lambda pin: print(f"LINEで確認するPIN: {pin}"),
             repair_e2ee=args.repair_e2ee,
         )
+    if args.command == "doctor":
+        from .lifecycle import diagnose
+        return diagnose(service, probe=True)
     if args.command == "status":
         return service.status()
     if args.command == "configure-operations":

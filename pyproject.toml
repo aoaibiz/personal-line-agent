@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "personal-line-agent"
-version = "0.2.2"
+version = "0.3.0"
 description = "Account-isolated LINE tools and durable relationship memory for MCP agents"
 readme = "README.md"
 license = "MIT"
@@ -24,9 +24,17 @@ dev = ["pytest>=8,<10", "ruff>=0.14,<1", "build>=1.3,<2", "pip-audit>=2.9,<3"]
 
 [project.scripts]
 line-agent = "line_agent.cli:main"
+line-agent-bridge = "line_agent.bridge:main"
+line-agent-runtime = "line_agent.runtime:main"
+
+[tool.hatch.build]
+ignore-vcs = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/line_agent"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

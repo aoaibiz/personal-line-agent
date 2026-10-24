@@ -170,6 +170,14 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
                              "form_protocol_supported": supported(ctx),
                              "host_presentation": "unknown"}}
 
+    @server.tool(annotations=local)
+    @boundary
+    def connection_check() -> dict[str, Any]:
+        """保存状態と実際のLINE接続を分けて診断。保存済み接続を再利用し、本文・秘密は返さない。
+        送信の再試行、停止の解除、QR再認証は実行しない。"""
+        from .lifecycle import diagnose
+        return diagnose(service, probe=True)
+
     @server.tool(annotations=read)
     @boundary
     def account_counts(max_unread_pages: int = 100) -> dict[str, Any]:

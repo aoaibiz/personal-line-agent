@@ -12,7 +12,7 @@ from mcp.client.stdio import stdio_client
 
 async def request(root, account, request_id, kind=None, payload=None, *, status_only=False):
     params = StdioServerParameters(command=sys.executable,
-        args=["-m", "line_agent", "--root", str(root), "--account", account, "mcp",
+        args=["-I", "-m", "line_agent", "--root", str(root), "--account", account, "mcp",
               "--confirmation", "owner-delegation"])
     stage = "mcp_start"
     try:

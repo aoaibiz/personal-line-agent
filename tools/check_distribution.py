@@ -4,8 +4,8 @@ import zipfile
 from pathlib import Path
 
 
-def check():
-    artifacts = sorted(p for p in Path("dist").glob("*") if p.name != ".gitignore")
+def check(directory=Path("dist")):
+    artifacts = sorted(p for p in directory.glob("*") if p.name != ".gitignore")
     assert artifacts, "No distribution artifacts"
     expected = {p.name for p in Path("src/line_agent").glob("*.py")}
     for path in artifacts:
@@ -34,4 +34,7 @@ def check():
 
 
 if __name__ == "__main__":
-    check()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--directory", type=Path, default=Path("dist"))
+    check(parser.parse_args().directory)
