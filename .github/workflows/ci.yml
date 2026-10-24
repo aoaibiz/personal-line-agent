@@ -1,0 +1,20 @@
+name: Source verification
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: "0.10.10"
+      - run: uv sync --frozen --python 3.12
+      - run: uv run --frozen pytest
+      - run: uv run --frozen ruff check src tests
+      - run: uv build --offline
+      - run: uv run --frozen python tools/check_distribution.py
+      - run: uv run --frozen pip-audit --progress-spinner off
