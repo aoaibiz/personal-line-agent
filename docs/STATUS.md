@@ -1,6 +1,13 @@
-# Verification status — 2026-10-24
+# Verification status — 2026-10-25
 
-Current source: **0.4.0 / Windows support added**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+Current source: **0.4.1 / executable lookup security fix**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+
+## 0.4.1 security verification
+
+- [Three independent review sets](SECURITY-REVIEW-2026-10-25.md) covered storage/authentication, authorization/untrusted input, and runtime/supply chain. One High executable-search issue was safely reproduced and fixed across its matching application callers. Two independent reviewers rechecked the patch and synthetic resolution probes; no demonstrated Critical/High remains in that scope.
+- Native Windows / Python 3.11: repository suite **331 passed, 5 skipped**. Three additional private authorization probes passed after correcting their HTTP test harness initialization order; the initial combined run's sole failure was that harness error, before any HTTP request. Counts are separate, not repeated totals. OS/privilege/opt-in checks remain scoped by their skip conditions.
+- New regression coverage includes uv/Node/Codex CWD and relative-PATH rejection, the real harmless scheduler executable substitution, explicit SDK Node selection, missing-Node failure and pinned Codex executable reuse. Ruff passed. Pinned-backend wheel and sdist build/content checks passed (34 and 80 entries at the build checkpoint).
+- The associated PR's macOS/Linux/Windows matrix supplies final cross-platform checks. Live-account evidence for this security update is read-only connection/receiver continuity after replacing the backend and registered callers; no new send or owner reauthentication is required. Earlier real send/reply evidence remains separately described below.
 
 ## 0.4.0 Windows verification
 

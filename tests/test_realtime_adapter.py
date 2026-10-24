@@ -12,7 +12,7 @@ PEER = 'u' + 'a' * 32
 
 
 def wire_adapter(service, monkeypatch, events, *, status=200):
-    monkeypatch.setattr('line_agent.line.shutil.which', lambda name: '/synthetic/node')
+    monkeypatch.setattr('line_agent.line.find_executable', lambda name: '/synthetic/node')
     service.store.put('setting', 'identity', {'mid': OWNER})
     service.store.put('credential', 'session', {'mid': OWNER})
     service.store.put('setting', 'event_cursor', {'revision': 0})
@@ -133,7 +133,7 @@ def test_comment_only_stream_obeys_deadline_and_pause(service, monkeypatch, paus
 
 def test_missing_node_has_dependency_diagnosis_before_network(service, monkeypatch):
     adapter, api, calls, original = wire_adapter(service, monkeypatch, [])
-    monkeypatch.setattr('line_agent.line.shutil.which', lambda name: None)
+    monkeypatch.setattr('line_agent.line.find_executable', lambda name: None)
     with pytest.raises(ReceiveFailure) as error:
         adapter.receive_events(lambda e: None, 1)
     assert error.value.reason == 'dependency_missing'

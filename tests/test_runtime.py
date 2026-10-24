@@ -98,7 +98,7 @@ def test_runtime_metadata_with_protected_world_write_acl_is_rejected(tmp_path):
 
 def test_stage_failure_does_not_select_candidate(tmp_path, monkeypatch):
     source = Path(__file__).parents[1]
-    monkeypatch.setattr(runtime.shutil, 'which', lambda x: '/fixture/uv')
+    monkeypatch.setattr(runtime, 'find_executable', lambda x: '/fixture/uv')
     calls = []
     def failed(*args, **kwargs):
         calls.append(args[0])
@@ -142,7 +142,7 @@ def test_same_bridge_uses_new_backend_and_never_replays_failure(tmp_path, monkey
 
 def test_failed_stage_can_retry_without_deleting_or_selecting(tmp_path, monkeypatch):
     source = Path(__file__).parents[1]
-    monkeypatch.setattr(runtime.shutil, 'which', lambda x: '/fixture/uv')
+    monkeypatch.setattr(runtime, 'find_executable', lambda x: '/fixture/uv')
     monkeypatch.setattr(runtime.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=1))
     with pytest.raises(runtime.RuntimeFailure):
         runtime.stage(tmp_path, source)

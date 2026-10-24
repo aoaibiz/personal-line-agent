@@ -242,6 +242,48 @@ def release_python(target: Path) -> Path:
     return Path(target) / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python")
 
 
+def find_executable(command: str) -> str | None:
+    """Resolve an owner-selected executable without implicit/relative CWD searches.
+
+    Absolute commands and absolute PATH directories are trusted owner configuration.
+    Do not use Windows which/CreateProcess name lookup: both can prefer the CWD.
+    """
+    if not command or not isinstance(command, str):
+        return None
+    path = Path(command)
+    if path.is_absolute():
+        return str(path) if path.is_file() and os.access(path, os.X_OK) else None
+    if path.name != command or path.drive:
+        return None
+    names = [command]
+    if os.name == "nt":
+        extensions = [value.lower() for value in (os.environ.get(
+            "PATHEXT") or ".COM;.EXE;.BAT;.CMD").split(os.pathsep)
+            if value.lower() in {".com", ".exe", ".bat", ".cmd"}]
+        if path.suffix.lower() not in {".com", ".exe", ".bat", ".cmd"}:
+            names = [command + extension for extension in extensions]
+    for value in os.environ.get("PATH", "").split(os.pathsep):
+        directory = Path(value.strip('"'))
+        if not directory.is_absolute():
+            continue
+        for name in names:
+            candidate = directory / name
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+    return None
+
+
+def windows_system_executable(name: str) -> str:
+    """Resolve only our two OS utilities from the OS-reported system directory."""
+    if name not in {"schtasks.exe", "taskkill.exe"}:
+        raise ValueError("unsupported_system_executable")
+    import win32api
+    path = Path(win32api.GetSystemDirectory()) / name
+    if not path.is_absolute() or not path.is_file():
+        raise FileNotFoundError("system_executable_missing")
+    return str(path)
+
+
 def hidden_subprocess_kwargs() -> dict:
     if os.name != "nt":
         return {}
