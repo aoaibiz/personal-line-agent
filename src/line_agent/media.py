@@ -8,12 +8,18 @@ import os
 import uuid
 from pathlib import Path
 
+from .platform_security import private_open, reject_reparse
+
 MAX_MEDIA_BYTES = 50 * 1024 * 1024
 CHUNK = 1024 * 1024
 
 
 def stage_file(store, path: Path):
-    if path.is_symlink() or not path.is_file():
+    try:
+        reject_reparse(path)
+    except ValueError:
+        raise ValueError("添付は通常ファイルを指定してください") from None
+    if not path.is_file():
         raise ValueError("添付は通常ファイルを指定してください")
     lower = path.name.lower()
     if (
@@ -23,7 +29,7 @@ def stage_file(store, path: Path):
         or path.suffix.lower() in (".pem", ".key")
     ):
         raise ValueError("認証・鍵・設定ファイルは添付できません")
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = private_open(path, os.O_RDONLY)
     media_id, chunks, total = str(uuid.uuid4()), 0, 0
     checksum = hashlib.sha256()
     with os.fdopen(fd, "rb") as file:

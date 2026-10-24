@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,12 +12,20 @@ from line_agent import runtime
 from line_agent.bridge import create_bridge
 
 
+@pytest.fixture(autouse=True)
+def private_runtime_home(tmp_path):
+    runtime.private_directory(tmp_path)
+
+
 def release(home, marker):
     identity = marker * 64
     target = home / 'releases' / identity
-    (target / '.venv/bin').mkdir(parents=True)
-    (target / '.venv/bin/python').write_text('fixture')
+    python = runtime.release_python(target)
+    python.parent.mkdir(parents=True)
+    python.write_text('fixture')
+    runtime.private_file(python)
     (target / 'release.json').write_text(json.dumps({'id': identity, 'state': 'ready'}))
+    runtime.private_file(target / 'release.json')
     return identity
 
 
@@ -50,21 +60,53 @@ def test_paths_fail_closed(tmp_path):
     with pytest.raises(runtime.RuntimeFailure):
         runtime.release_path(tmp_path, '../outside')
     home = tmp_path / 'home'
-    home.symlink_to(tmp_path, target_is_directory=True)
+    try:
+        home.symlink_to(tmp_path, target_is_directory=True)
+    except OSError as error:
+        if os.name == "nt" and error.winerror == 1314:
+            pytest.skip("Windows symlink privilege is unavailable")
+        raise
     with pytest.raises(runtime.RuntimeFailure, match='symlink'):
         runtime.safe_directory(home)
     (tmp_path / 'active.json').symlink_to(tmp_path / 'missing')
-    with pytest.raises(OSError):
+    with pytest.raises(runtime.RuntimeFailure, match="runtime_metadata_not_private"):
         runtime.selected(tmp_path)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows runtime ACL contract")
+def test_runtime_metadata_with_protected_world_write_acl_is_rejected(tmp_path):
+    import ntsecuritycon
+    import win32security
+
+    runtime.safe_directory(tmp_path)
+    selector = tmp_path / "active.json"
+    selector.write_text('{}')
+    world = win32security.CreateWellKnownSid(win32security.WinWorldSid, None)
+    dacl = win32security.ACL()
+    dacl.AddAccessAllowedAce(dacl.GetAclRevision(), ntsecuritycon.FILE_ALL_ACCESS, world)
+    descriptor = win32security.SECURITY_DESCRIPTOR()
+    descriptor.SetSecurityDescriptorDacl(1, dacl, 0)
+    win32security.SetFileSecurity(
+        str(selector),
+        win32security.DACL_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
+        descriptor,
+    )
+    with pytest.raises(runtime.RuntimeFailure, match="runtime_metadata_not_private"):
+        runtime.read_json(selector)
 
 
 def test_stage_failure_does_not_select_candidate(tmp_path, monkeypatch):
     source = Path(__file__).parents[1]
     monkeypatch.setattr(runtime.shutil, 'which', lambda x: '/fixture/uv')
-    monkeypatch.setattr(runtime.subprocess, 'run', lambda *a, **k: SimpleNamespace(returncode=1))
+    calls = []
+    def failed(*args, **kwargs):
+        calls.append(args[0])
+        return SimpleNamespace(returncode=1)
+    monkeypatch.setattr(runtime.subprocess, 'run', failed)
     with pytest.raises(runtime.RuntimeFailure, match='release_install_failed'):
         runtime.stage(tmp_path, source)
     assert not (tmp_path / 'active.json').exists()
+    assert calls[0][calls[0].index('--python') + 1] == sys.executable
 
 
 def test_same_bridge_uses_new_backend_and_never_replays_failure(tmp_path, monkeypatch):

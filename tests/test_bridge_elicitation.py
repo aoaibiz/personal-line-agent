@@ -79,7 +79,7 @@ def test_real_backend_timeout_returns_while_original_host_never_responds(monkeyp
         calls = []
 
         async def never_responds(*args):
-            calls.append("owner_start")
+            calls.append(("owner_start", time.monotonic()))
             await asyncio.Event().wait()
 
         cap = types.ElicitationCapability(
@@ -96,14 +96,15 @@ def test_real_backend_timeout_returns_while_original_host_never_responds(monkeyp
                 name="authentication_repair",
                 arguments={"request_id": "22222222-2222-4222-8222-222222222222"},
             ))
-            started = time.monotonic()
             response = await asyncio.wait_for(server.request_handlers[types.CallToolRequest](request), 5)
             data = response.root.structuredContent
             assert data["error"] == "authentication_ui_timeout"
             assert data["login_invoked"] is False
             assert data["host_action"] is None
-            assert calls == ["owner_start"]
-            assert time.monotonic() - started < 4
+            assert [call[0] for call in calls] == ["owner_start"]
+            # Process startup is outside the owner UI timeout; after the UI prompt
+            # reaches the host, the relay deadline itself must remain bounded.
+            assert time.monotonic() - calls[0][1] < 2
         finally:
             request_ctx.reset(token)
 

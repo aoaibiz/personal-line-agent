@@ -100,11 +100,13 @@ def parser():
 
 
 def write_private_new(path, data):
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    from .platform_security import private_file, private_open
+    fd = private_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
         file.flush()
         os.fsync(file.fileno())
+    private_file(path)
 
 
 def run(args):
