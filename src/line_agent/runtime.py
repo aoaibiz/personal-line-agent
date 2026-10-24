@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,7 @@ from mcp.client.stdio import stdio_client
 
 from .platform_security import (
     exclusive_file,
+    find_executable,
     hidden_subprocess_kwargs,
     private_directory,
     private_file,
@@ -182,7 +182,7 @@ def stage(home, source):
                 with os.fdopen(fd, "wb") as stream:
                     stream.write(data)
                 private_file(path)
-        uv = shutil.which("uv")
+        uv = find_executable("uv")
         if not uv:
             raise RuntimeFailure("uv_missing")
         # No shell; stdout/stderr can contain private local paths. Keep them out of chat.

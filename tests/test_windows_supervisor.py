@@ -202,6 +202,7 @@ def test_windows_stop_ends_task_after_initial_instance_query_failure(monkeypatch
 
 def test_windows_child_tree_is_killed_before_root_is_terminated(monkeypatch):
     monkeypatch.setattr(supervisor.sys, "platform", "win32")
+    monkeypatch.setattr(supervisor, "windows_system_executable", lambda name: "/system/" + name)
     events = []
 
     class Child:
@@ -225,7 +226,7 @@ def test_windows_child_tree_is_killed_before_root_is_terminated(monkeypatch):
     monkeypatch.setattr(supervisor.subprocess, "run", run)
     supervisor._stop_child(Child())
 
-    assert events[0] == ["taskkill.exe", "/PID", "8123", "/T", "/F"]
+    assert events[0] == ["/system/taskkill.exe", "/PID", "8123", "/T", "/F"]
     assert events[1] == "wait:20"
     assert "terminate" not in events
 
@@ -256,7 +257,7 @@ def test_windows_job_object_kills_harmless_descendant_on_close(tmp_path):
     finally:
         if parent.poll() is None:
             subprocess.run(
-                ["taskkill.exe", "/PID", str(parent.pid), "/T", "/F"],
+                [supervisor.windows_system_executable("taskkill.exe"), "/PID", str(parent.pid), "/T", "/F"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
@@ -292,7 +293,7 @@ def test_windows_stop_child_kills_real_worker_descendant_while_supervisor_surviv
     finally:
         if worker.poll() is None:
             subprocess.run(
-                ["taskkill.exe", "/PID", str(worker.pid), "/T", "/F"],
+                [supervisor.windows_system_executable("taskkill.exe"), "/PID", str(worker.pid), "/T", "/F"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,

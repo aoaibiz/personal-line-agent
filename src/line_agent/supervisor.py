@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import plistlib
-import shutil
 import signal
 import subprocess
 import sys
@@ -18,7 +17,13 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-from .platform_security import hidden_subprocess_kwargs, private_file, release_python
+from .platform_security import (
+    find_executable,
+    hidden_subprocess_kwargs,
+    private_file,
+    release_python,
+    windows_system_executable,
+)
 from .runtime import release_path, safe_directory, selected, write_json
 from .store import account_path, open_store
 
@@ -177,7 +182,7 @@ def windows_definition(home, root, account, python, node, *, sid=None):
 def _schtasks(args, *, input=None):
     """Run the built-in scheduler without exposing command output to callers."""
     return subprocess.run(
-        ["schtasks.exe", *args],
+        [windows_system_executable("schtasks.exe"), *args],
         input=input,
         capture_output=True,
         timeout=30,
@@ -419,7 +424,7 @@ def _stop_child(child):
         # taskkill can no longer discover a Node grandchild through /T.
         try:
             subprocess.run(
-                ["taskkill.exe", "/PID", str(child.pid), "/T", "/F"],
+                [windows_system_executable("taskkill.exe"), "/PID", str(child.pid), "/T", "/F"],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -698,7 +703,7 @@ def main():
         "--root", type=Path, default=Path.home() / ".local/share/personal-line-agent"
     )
     parser.add_argument("--account", default="personal")
-    parser.add_argument("--node", default=shutil.which("node"))
+    parser.add_argument("--node", default=find_executable("node"))
     parser.add_argument("command", choices=["install", "start", "stop", "status", "retry", "run"])
     args = parser.parse_args()
     try:
