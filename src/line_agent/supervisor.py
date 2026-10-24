@@ -311,14 +311,27 @@ def _set_windows_stop_request(root, account, *, requested):
         return False
 
 
-def _wait_for_windows_stop(name, timeout):
+def _windows_receiver_locks_free(root, account):
+    """Prove the account's real supervisor and worker have both exited."""
+    try:
+        store = open_store(root, account)
+        with store.exclusive("supervisor", blocking=False):
+            with store.exclusive("worker", blocking=False):
+                return True
+    except BlockingIOError:
+        return False
+    except Exception as error:
+        raise RuntimeError("service_lock_query_failed") from error
+
+
+def _wait_for_windows_stop(name, root, account, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
             running = _windows_task_instances_running(name)
         except Exception:
             raise RuntimeError("service_instance_query_failed") from None
-        if not running:
+        if not running and _windows_receiver_locks_free(root, account):
             return True
         time.sleep(0.25)
     return False
@@ -331,6 +344,12 @@ def windows_task(verb, root, account):
         raise ValueError("invalid_service_operation")
     name = windows_task_name(root, account)
     if verb == "start":
+        try:
+            idle = _windows_receiver_locks_free(root, account)
+        except RuntimeError:
+            return {"operation": verb, "label": name, "ok": False, "error": "service_stop_unverified"}
+        if not idle:
+            return {"operation": verb, "label": name, "ok": False, "error": "service_stop_pending"}
         if not _set_windows_stop_request(root, account, requested=False):
             return {"operation": verb, "label": name, "ok": False, "error": "stop_marker_clear_failed"}
         enabled = _schtasks(["/Change", "/TN", name, "/Enable"])
@@ -354,12 +373,14 @@ def windows_task(verb, root, account):
                 "error": "service_disable_failed",
                 "exit_code": disabled.returncode,
             }
+        if not marker_written:
+            # Without a durable marker, a surviving supervisor cannot be proven to
+            # stay stopped. End the dedicated task, then fail closed as unmeasured.
+            _schtasks(["/End", "/TN", name])
+            return {"operation": verb, "label": name, "ok": False, "error": "service_stop_unverified"}
         try:
-            if _wait_for_windows_stop(name, 70):
-                result = {"operation": verb, "label": name, "ok": True, "exit_code": 0, "state": "disabled"}
-                if not marker_written:
-                    result["warning"] = "stop_marker_set_failed"
-                return result
+            if _wait_for_windows_stop(name, root, account, 70):
+                return {"operation": verb, "label": name, "ok": True, "exit_code": 0, "state": "disabled"}
         except RuntimeError:
             # Disable prevents a future timer/logon revival; still ask Scheduler to end
             # the current instance before reporting that its final state is unmeasured.
@@ -370,9 +391,9 @@ def windows_task(verb, root, account):
     value = {"operation": verb, "label": name, "ok": result.returncode == 0, "exit_code": result.returncode}
     if verb == "stop" and result.returncode == 0:
         try:
-            stopped = _wait_for_windows_stop(name, 95)
+            stopped = _wait_for_windows_stop(name, root, account, 95)
         except RuntimeError:
-            return {"operation": verb, "label": name, "ok": False, "error": "service_instance_query_failed"}
+            return {"operation": verb, "label": name, "ok": False, "error": "service_stop_unverified"}
         if not stopped:
             return {
                 "operation": verb,
@@ -386,8 +407,6 @@ def windows_task(verb, root, account):
             value["state"] = _windows_task_state(name)
         except Exception:
             value["state"] = "unknown"
-    if verb == "stop" and not marker_written:
-        value["warning"] = "stop_marker_set_failed"
     return value
 
 

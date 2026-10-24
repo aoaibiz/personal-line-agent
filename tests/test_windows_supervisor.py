@@ -19,6 +19,7 @@ def _windows(monkeypatch, tmp_path):
     monkeypatch.setattr(supervisor, "safe_directory", lambda value: Path(value))
     monkeypatch.setattr(supervisor, "selected", lambda _: {"current": "a" * 64})
     monkeypatch.setattr(supervisor, "release_path", lambda *_: tmp_path / "release")
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: True)
     python = tmp_path / "python.exe"
     node = tmp_path / "node.exe"
     pythonw = tmp_path / "pythonw.exe"
@@ -107,6 +108,7 @@ def test_windows_stop_requests_graceful_exit_before_scheduler_end(monkeypatch, t
 
 def test_windows_start_clears_marker_enables_then_runs(monkeypatch, tmp_path):
     monkeypatch.setattr(supervisor.sys, "platform", "win32")
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: True)
     calls = []
     monkeypatch.setattr(supervisor, "_set_windows_stop_request", lambda *_a, **_k: True)
     monkeypatch.setattr(
@@ -122,6 +124,7 @@ def test_windows_start_clears_marker_enables_then_runs(monkeypatch, tmp_path):
 
 def test_windows_refuses_start_but_stops_task_when_marker_write_fails(monkeypatch, tmp_path):
     monkeypatch.setattr(supervisor.sys, "platform", "win32")
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: True)
     monkeypatch.setattr(supervisor, "_set_windows_stop_request", lambda *_a, **_k: False)
     calls = []
     monkeypatch.setattr(
@@ -131,8 +134,19 @@ def test_windows_refuses_start_but_stops_task_when_marker_write_fails(monkeypatc
 
     assert supervisor.windows_task("start", tmp_path, "test")["error"] == "stop_marker_clear_failed"
     result = supervisor.windows_task("stop", tmp_path, "test")
-    assert result["ok"] and result["warning"] == "stop_marker_set_failed"
-    assert calls == [["/Change", "/TN", supervisor.windows_task_name(tmp_path, "test"), "/Disable"]]
+    assert not result["ok"] and result["error"] == "service_stop_unverified"
+    assert calls == [
+        ["/Change", "/TN", supervisor.windows_task_name(tmp_path, "test"), "/Disable"],
+        ["/End", "/TN", supervisor.windows_task_name(tmp_path, "test")],
+    ]
+
+
+def test_windows_start_refuses_to_clear_stop_marker_while_old_receiver_holds_lock(monkeypatch, tmp_path):
+    monkeypatch.setattr(supervisor.sys, "platform", "win32")
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: False)
+    monkeypatch.setattr(supervisor, "_set_windows_stop_request", lambda *_a, **_k: pytest.fail("must not clear"))
+
+    assert supervisor.windows_task("start", tmp_path, "test")["error"] == "service_stop_pending"
 
 
 def test_windows_stop_probe_uses_instances_not_disabled_task_state(monkeypatch):
@@ -155,9 +169,19 @@ def test_windows_stop_probe_uses_instances_not_disabled_task_state(monkeypatch):
     assert running(0) is False
 
 
+def test_windows_wait_requires_free_supervisor_and_worker_locks(monkeypatch):
+    monotonic = iter([0, 0, 1])
+    monkeypatch.setattr(supervisor, "_windows_task_instances_running", lambda _name: False)
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: False)
+    monkeypatch.setattr(supervisor.time, "monotonic", lambda: next(monotonic))
+    monkeypatch.setattr(supervisor.time, "sleep", lambda _seconds: None)
+
+    assert not supervisor._wait_for_windows_stop("\\PersonalLineAgent\\fixture", "root", "test", 0.5)
+
+
 def test_windows_stop_ends_task_after_initial_instance_query_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(supervisor.sys, "platform", "win32")
-    monkeypatch.setattr(supervisor, "_set_windows_stop_request", lambda *_a, **_k: False)
+    monkeypatch.setattr(supervisor, "_set_windows_stop_request", lambda *_a, **_k: True)
     calls = []
     monkeypatch.setattr(
         supervisor, "_schtasks", lambda args: calls.append(args) or SimpleNamespace(returncode=0)
@@ -169,7 +193,7 @@ def test_windows_stop_ends_task_after_initial_instance_query_failure(monkeypatch
 
     result = supervisor.windows_task("stop", tmp_path, "test")
 
-    assert not result["ok"] and result["error"] == "service_instance_query_failed"
+    assert not result["ok"] and result["error"] == "service_stop_unverified"
     assert calls == [
         ["/Change", "/TN", supervisor.windows_task_name(tmp_path, "test"), "/Disable"],
         ["/End", "/TN", supervisor.windows_task_name(tmp_path, "test")],
@@ -285,6 +309,7 @@ def test_windows_scheduler_restarts_harmless_nonzero_manual_run(monkeypatch, tmp
     monkeypatch.setattr(supervisor, "safe_directory", lambda value: Path(value))
     monkeypatch.setattr(supervisor, "selected", lambda _: {"current": "a" * 64})
     monkeypatch.setattr(supervisor, "release_path", lambda *_: tmp_path / "release")
+    monkeypatch.setattr(supervisor, "_windows_receiver_locks_free", lambda *_a: True)
     name = supervisor.windows_task_name(tmp_path / "data", "probe" + uuid.uuid4().hex)
     marker = tmp_path / "restarted"
     count = tmp_path / "count"
@@ -315,7 +340,7 @@ def test_windows_scheduler_restarts_harmless_nonzero_manual_run(monkeypatch, tmp
         assert marker.exists(), "Task Scheduler did not restart the failed manual run"
         before_stop = int(count.read_text())
         assert supervisor._schtasks(["/Change", "/TN", name, "/Disable"]).returncode == 0
-        assert supervisor._wait_for_windows_stop(name, 15)
+        assert supervisor._wait_for_windows_stop(name, tmp_path, "probe", 15)
         time.sleep(65)
         assert int(count.read_text()) == before_stop, "disabled task revived on its timer"
         assert supervisor._schtasks(["/Change", "/TN", name, "/Enable"]).returncode == 0
@@ -327,5 +352,5 @@ def test_windows_scheduler_restarts_harmless_nonzero_manual_run(monkeypatch, tmp
     finally:
         if registered:
             supervisor._schtasks(["/End", "/TN", name])
-            supervisor._wait_for_windows_stop(name, 15)
+            supervisor._wait_for_windows_stop(name, tmp_path, "probe", 15)
             supervisor._schtasks(["/Delete", "/TN", name, "/F"])
