@@ -1,6 +1,6 @@
 # Verification status — 2026-10-24
 
-Release candidate: **0.2.2 / source preview**. This is an engineering verification record, not a guarantee for all accounts or a claim of finished end-user onboarding.
+Release candidate: **0.2.2 / source preview**. This is an engineering verification record, not a guarantee for all accounts. Clarified requirement: human terminal use is allowed during initial installation, configuration and authentication. After setup, operation, updates, reconnection and recovery must not require human PC interaction. An initial-setup GUI is not a completion requirement.
 
 ## Verified
 
@@ -19,7 +19,7 @@ These tests establish the tested paths and account conditions only. API presence
 
 ## Unverified / incomplete
 
-- All-user graphical installation, initial QR/PIN presentation, updates and recovery without human terminal operation.
+- All post-setup update, reconnection, reauthentication and recovery paths without human PC interaction. Initial terminal-based installation/authentication is allowed and does not itself make the product incomplete.
 - A fresh user's complete authentication and smartphone-to-host setup for every supported host.
 - All LINE message/media types, every account configuration and future upstream behavior.
 - Full smartphone history retrieval, expired media restoration, OpenChat and calendar integration.

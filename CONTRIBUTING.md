@@ -10,7 +10,7 @@ uv build --offline
 uv run --frozen pip-audit --progress-spinner off
 ```
 
-These are internal developer/agent commands, not end-user onboarding instructions. Review the actual source and dependencies before connecting a real account. Real writes require the owner's instruction and a confirmed target. Never put real account data into tests, screenshots, issues, commits or release assets.
+These are developer/agent commands. Initial installation and authentication may also use a terminal operated by the owner; after setup, the owner must not need PC interaction for operation, updates or recovery. Review the actual source and dependencies before connecting a real account. Real writes require the owner's instruction and a confirmed target. Never put real account data into tests, screenshots, issues, commits or release assets.
 
 Before changing action execution, add regressions for duplicate requests, unknown results, pause/revocation and account/target binding. Keep public errors safe and diagnosable. Document unverified behavior rather than replacing failure with an empty result.
 
