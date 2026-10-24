@@ -59,3 +59,10 @@ Public source is a fresh export, not the private development repository's commit
 - Independent correctness and security reviews found no unresolved critical/high code findings in this change. This does not waive the unverified smartphone authentication requirement.
 - Dependency audit reported no known vulnerabilities for auditable registry packages. The pinned Git dependency and this unpublished application version were not in the registry advisory scan; their absence is not an audit pass for their source code.
 - Reusable lesson: macOS service `bootout` may acknowledge before teardown finishes. Wait for the scoped service to disappear before bootstrapping its replacement; preserve the prior plist and account data for rollback. Verified 2026-10-24; applies to this launchd receiver deployment, not a claim about other platforms.
+
+### Authentication diagnostic follow-up
+
+- An actual host advertised form/URL support but returned an immediate non-accept response to the start confirmation. The owner reported that no confirmation screen appeared. LINE login did not begin; the existing connection, E2EE and receiver remained working. The earlier implementation collapsed decline/cancel/missing confirmation into one cancelled result, so the exact original host action cannot be recovered from that result.
+- Diagnostics now separate those outcomes and record only closed stage/action values, login invocation, and per-stage response time. No credential, QR/PIN or arbitrary host metadata is stored. This change does not relax authentication or host approval policy, and does not itself fix host UI availability.
+- Current source regression suite: 269 tests passed. Independent correctness/security delta reviews: 13 targeted tests passed, with no unresolved critical/high finding in this delta. The review caught and fixed response timing being carried into a later unanswered stage.
+- Smartphone-only reauthentication remains incomplete. Host policy preventing UI is a supported explanation from public source and the current execution policy, not a traced proof of the installed host's exact internal branch.

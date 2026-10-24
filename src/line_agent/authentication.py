@@ -70,11 +70,28 @@ async def repair(service, request_id, ctx):
             if previous:
                 return previous
 
+            flow = {
+                "login_invoked": False,
+                "ui_stage": "owner_start",
+                "host_action": None,
+                "presentation_verified": False,
+                "ui_response_ms": None,
+            }
+
+            def decision(answer, stage, elapsed):
+                action = (
+                    answer.action if answer.action in {"accept", "decline", "cancel"} else "invalid"
+                )
+                flow.update(
+                    ui_stage=stage, host_action=action, ui_response_ms=round(elapsed * 1000)
+                )
+
             def record(state, **fields):
                 row = {
                     "request_id": request_id,
                     "state": state,
                     "checked_at": time.time(),
+                    **flow,
                     **fields,
                 }
                 service.store.put("authentication_request", request_id, row)
@@ -88,6 +105,7 @@ async def repair(service, request_id, ctx):
                 },
                 "required": ["confirm"],
             }
+            requested_at = time.monotonic()
             try:
                 answer = await asyncio.wait_for(
                     ctx.session.elicit_form(
@@ -100,12 +118,19 @@ async def repair(service, request_id, ctx):
                 return record("error", ok=False, error="authentication_ui_timeout")
             except Exception:
                 return record("error", ok=False, error="authentication_ui_unavailable")
+            decision(answer, "owner_start", time.monotonic() - requested_at)
+            if answer.action == "decline":
+                return record("declined", ok=False, error="authentication_host_declined")
+            if answer.action == "cancel":
+                return record("cancelled", ok=False, error="authentication_cancelled")
             if (
                 answer.action != "accept"
                 or not answer.content
                 or answer.content.get("confirm") is not True
             ):
-                return record("cancelled", ok=False, error="authentication_cancelled")
+                return record(
+                    "not_confirmed", ok=False, error="authentication_confirmation_missing"
+                )
             loop = asyncio.get_running_loop()
             cancelled = threading.Event()
 
@@ -128,6 +153,13 @@ async def repair(service, request_id, ctx):
             def display(kind, value):
                 if cancelled.is_set():
                     raise DiagnosticError("authentication_ui", "authentication_cancelled")
+                flow.update(
+                    ui_stage="qr_link" if kind == "url" else "pin",
+                    host_action=None,
+                    ui_response_ms=None,
+                )
+                record("awaiting_host")
+                requested_at = time.monotonic()
                 future = asyncio.run_coroutine_threadsafe(prompt(kind, value), loop)
                 try:
                     reply = future.result(timeout=90)
@@ -142,11 +174,17 @@ async def repair(service, request_id, ctx):
                     raise DiagnosticError(
                         "authentication_ui", "authentication_ui_unavailable"
                     ) from None
+                decision(
+                    reply, "qr_link" if kind == "url" else "pin", time.monotonic() - requested_at
+                )
+                if reply.action == "decline":
+                    raise DiagnosticError("authentication_ui", "authentication_host_declined")
                 if reply.action != "accept":
                     raise DiagnosticError("authentication_ui", "authentication_cancelled")
 
             def login():
                 try:
+                    flow["login_invoked"] = True
                     record("running")
                     result = service.line.login(
                         on_qr=lambda value: display("url", value),
@@ -164,7 +202,13 @@ async def repair(service, request_id, ctx):
                 except Exception as error:
                     safe = diagnostic_error("authentication_ui", error)
                     return record(
-                        "cancelled" if safe.reason == "authentication_cancelled" else "error",
+                        (
+                            "cancelled"
+                            if safe.reason == "authentication_cancelled"
+                            else "declined"
+                            if safe.reason == "authentication_host_declined"
+                            else "error"
+                        ),
                         ok=False,
                         error=safe.reason,
                         stage=safe.stage,

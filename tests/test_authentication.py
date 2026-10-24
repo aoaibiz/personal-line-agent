@@ -99,6 +99,7 @@ def test_bad_url_does_not_open_arbitrary_page(service):
     service.line.login = login
     result = asyncio.run(repair(service, str(uuid.uuid4()), ctx))
     assert result["error"] == "authentication_url_invalid" and calls == ["form"]
+    assert result["ui_stage"] == "qr_link" and result["ui_response_ms"] is None
     assert "attacker" not in str(result)
 
 
@@ -145,3 +146,47 @@ def test_repeated_cancellation_keeps_auth_lock_until_sdk_thread_exits(service):
                 await task
 
     asyncio.run(check())
+
+
+@pytest.mark.parametrize(
+    "action,content,state,error",
+    [
+        ("decline", None, "declined", "authentication_host_declined"),
+        ("cancel", None, "cancelled", "authentication_cancelled"),
+        ("accept", {}, "not_confirmed", "authentication_confirmation_missing"),
+    ],
+)
+def test_initial_host_decision_is_not_reported_as_user_action(
+    service, action, content, state, error
+):
+    calls = setup(service)
+    ctx, _ = context()
+
+    async def respond(*args):
+        return types.ElicitResult(
+            action=action,
+            content=content,
+            _meta={"private": "DO-NOT-RECORD", "reason": "untrusted upstream prose"},
+        )
+
+    ctx.session.elicit_form = respond
+    result = asyncio.run(repair(service, str(uuid.uuid4()), ctx))
+    assert result["state"] == state and result["error"] == error
+    assert result["host_action"] == action and result["ui_stage"] == "owner_start"
+    assert result["presentation_verified"] is False and result["login_invoked"] is False
+    assert result["ui_response_ms"] >= 0 and not calls
+    assert "DO-NOT-RECORD" not in str(result) and "untrusted upstream prose" not in str(result)
+
+
+def test_qr_host_decline_is_recorded_separately_from_cancel(service):
+    setup(service)
+    ctx, _ = context()
+
+    async def refuse(*args):
+        return types.ElicitResult(action="decline")
+
+    ctx.session.elicit_url = refuse
+    result = asyncio.run(repair(service, str(uuid.uuid4()), ctx))
+    assert result["state"] == "declined" and result["error"] == "authentication_host_declined"
+    assert result["ui_stage"] == "qr_link" and result["login_invoked"] is True
+    assert "SECRET" not in str(result)
