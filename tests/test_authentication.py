@@ -44,11 +44,13 @@ def setup(service):
     service.store.put("setting", "identity", {"mid": service.line.ids[-1]})
     calls = []
 
-    def login(on_qr, on_pin, repair_e2ee=False):
+    def login(on_qr, on_pin, repair_e2ee=False, confirmation_gate=None):
         assert repair_e2ee
         calls.append("login")
         on_qr("line://au/q/synthetic?secret=NOT-A-REAL-SECRET")
+        confirmation_gate(wait=True)
         on_pin("123456")
+        confirmation_gate(wait=True)
         return {"connected": True, "e2ee_ready": True}
 
     service.line.login = login

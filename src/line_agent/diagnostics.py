@@ -32,6 +32,7 @@ REASONS = {
     "authentication_ui_unsupported": "このホストにはスマホ認証画面の対応機能がありません。認証は開始していません。",
     "authentication_ui_unavailable": "本人確認画面を利用できませんでした。秘密はチャットへ返していません。",
     "authentication_ui_timeout": "本人確認画面の待機時間が終了しました。",
+    "authentication_phone_confirmation_timeout": "LINEへの承認確認が待機時間内に完了しませんでした。本人が未操作だったとは断定できません。",
     "authentication_cancelled": "本人確認の処理は中止されました。取消した主体はこの結果だけでは特定できません。",
     "authentication_host_declined": "ホストから確認要求の拒否応答が返りました。利用者の操作による拒否とは断定できません。",
     "authentication_confirmation_missing": "再認証を開始する確認が得られなかったため、LINE認証は開始していません。",

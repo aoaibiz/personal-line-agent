@@ -70,7 +70,7 @@ class LineAdapter:
         health(self.store, "ready" if keys else "missing", count=len(keys),
                reason=None if keys else "e2ee_keys_missing")
 
-    def login(self, on_qr, on_pin, *, repair_e2ee=False):
+    def login(self, on_qr, on_pin, *, repair_e2ee=False, confirmation_gate=None):
         """Owner-only login, with safe stages and a durable authenticated checkpoint."""
         from uuid import uuid4
 
@@ -116,12 +116,19 @@ class LineAdapter:
                     self.store.put("credential_recovery", uuid4().hex, session)
                 api = self._client(None if repair_e2ee else session)
                 original_call = api.transport.call
+                issuing_started = False
 
                 def observe(endpoint, *args, **kwargs):
-                    nonlocal stage
+                    nonlocal stage, issuing_started
                     phase = stages.get(endpoint.rsplit(".", 1)[-1])
                     if phase:
                         stage = phase
+                    if confirmation_gate and not issuing_started:
+                        confirmation_gate(wait=phase in {"qr_certificate", "qr_pin_create", "qr_issue"})
+                    if phase == "qr_issue":
+                        # Once issuance starts, finish the authenticated checkpoint
+                        # even if the host disconnects; never discard rotated tokens.
+                        issuing_started = True
                     began = time.monotonic()
                     record_trace(state="waiting", stage=stage, checked_at=time.time())
                     try:
@@ -133,11 +140,15 @@ class LineAdapter:
                             "line_code": safe.line_code,
                             "elapsed_seconds": round(time.monotonic()-began, 3)})
                         record_trace()
+                        if confirmation_gate and not issuing_started:
+                            confirmation_gate(wait=False)
                         # Preserve the SDK's certificate/PIN and polling fallback.
                         raise
                     trace["events"].append({"stage": stage, "outcome": "ok",
                         "elapsed_seconds": round(time.monotonic()-began, 3)})
                     record_trace()
+                    if confirmation_gate and not issuing_started:
+                        confirmation_gate(wait=False)
                     return value
 
                 api.transport.call = observe
@@ -164,6 +175,8 @@ class LineAdapter:
                             certificate=(session or {}).get("certificate"))
                     else:
                         result = api.qr_login(on_qr=render, on_pin=on_pin)
+                    if confirmation_gate and not issuing_started:
+                        confirmation_gate(wait=True)
                     if not result.success or not api.tokens.access_token:
                         raise DiagnosticError("qr_issue", "invalid_login_result")
                     if previous and api.tokens.mid != previous["mid"]:
@@ -211,6 +224,9 @@ class LineAdapter:
                         "readiness": "encrypted_messages" if api.e2ee.is_ready() else "metadata_only"}
             except Exception as error:
                 failure = diagnostic_error(stage, error)
+                if stage in {"qr_scan_wait", "qr_pin_wait"} and failure.http_status == 410:
+                    failure = DiagnosticError(stage, "authentication_phone_confirmation_timeout",
+                                              http_status=410, line_code=failure.line_code)
                 failure.login_trace_id = trace_id
                 record_trace(state="error", stage=failure.stage, reason=failure.reason,
                     failure_kind=transport_kind(error), finished_at=time.time())

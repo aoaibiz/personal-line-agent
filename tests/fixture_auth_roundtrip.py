@@ -29,7 +29,9 @@ class MemoryStore:
 
 def login(on_qr, on_pin, **kwargs):
     on_qr("https://line.me/R/au/lgn/sq/SYNTHETIC?secret=SYNTHETIC&e2eeVersion=1")
+    kwargs["confirmation_gate"](wait=True)
     on_pin("123456")
+    kwargs["confirmation_gate"](wait=True)
     return {"connected": True, "e2ee_ready": True}
 
 

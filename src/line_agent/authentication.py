@@ -153,36 +153,57 @@ async def repair(service, request_id, ctx):
                     {"type": "object", "properties": {}},
                 )
 
+            pending = []
+
+            async def timed_prompt(kind, value):
+                reply = await asyncio.wait_for(prompt(kind, value), 90)
+                return reply, time.monotonic()
+
             def display(kind, value):
                 if cancelled.is_set():
                     raise DiagnosticError("authentication_ui", "authentication_cancelled")
-                flow.update(
-                    ui_stage="qr_link" if kind == "url" else "pin",
-                    host_action=None,
-                    ui_response_ms=None,
-                )
+                flow.update(ui_stage="qr_link" if kind == "url" else "pin",
+                            host_action=None, ui_response_ms=None)
+                if kind == "url" and not valid_line_url(value):
+                    raise DiagnosticError("authentication_ui", "authentication_url_invalid")
+                if kind == "pin" and (not isinstance(value, str) or not re.fullmatch(r"\d{4,8}", value)):
+                    raise DiagnosticError("authentication_ui", "authentication_pin_invalid")
                 record("awaiting_host")
                 requested_at = time.monotonic()
-                future = asyncio.run_coroutine_threadsafe(prompt(kind, value), loop)
-                try:
-                    reply = future.result(timeout=90)
-                except TimeoutError:
-                    future.cancel()
-                    raise DiagnosticError(
-                        "authentication_ui", "authentication_ui_timeout"
-                    ) from None
-                except DiagnosticError:
-                    raise
-                except Exception:
-                    raise DiagnosticError(
-                        "authentication_ui", "authentication_ui_unavailable"
-                    ) from None
-                decision(
-                    reply, "qr_link" if kind == "url" else "pin", time.monotonic() - requested_at
-                )
-                if reply.action == "decline":
-                    raise DiagnosticError("authentication_ui", "authentication_host_declined")
-                if reply.action != "accept":
+                pending.append((
+                    asyncio.run_coroutine_threadsafe(timed_prompt(kind, value), loop),
+                    kind, requested_at,
+                ))
+                # The SDK starts its LINE scan/PIN poll now, while the owner UI
+                # is pending. A separate gate must pass before token issuance.
+
+            def confirmation_gate(*, wait=False):
+                if cancelled.is_set():
+                    raise DiagnosticError("authentication_ui", "authentication_cancelled")
+                while pending:
+                    future, kind, requested_at = pending[0]
+                    if not wait and not future.done():
+                        return
+                    try:
+                        reply, responded_at = future.result(timeout=95)
+                    except TimeoutError:
+                        future.cancel()
+                        raise DiagnosticError("authentication_ui", "authentication_ui_timeout") from None
+                    except DiagnosticError:
+                        raise
+                    except Exception:
+                        raise DiagnosticError("authentication_ui", "authentication_ui_unavailable") from None
+                    if cancelled.is_set():
+                        raise DiagnosticError("authentication_ui", "authentication_cancelled")
+                    pending.pop(0)
+                    decision(reply, "qr_link" if kind == "url" else "pin",
+                             responded_at - requested_at)
+                    if reply.action == "decline":
+                        raise DiagnosticError("authentication_ui", "authentication_host_declined")
+                    if reply.action != "accept":
+                        raise DiagnosticError("authentication_ui", "authentication_cancelled")
+                    record("awaiting_phone")
+                if cancelled.is_set():
                     raise DiagnosticError("authentication_ui", "authentication_cancelled")
 
             def login():
@@ -193,7 +214,10 @@ async def repair(service, request_id, ctx):
                         on_qr=lambda value: display("url", value),
                         on_pin=lambda value: display("pin", str(value)),
                         repair_e2ee=True,
+                        confirmation_gate=confirmation_gate,
                     )
+                    if pending:
+                        confirmation_gate(wait=True)
                     if result.get("connected") is not True or result.get("e2ee_ready") is not True:
                         raise DiagnosticError("authentication_ui", "e2ee_login_incomplete")
                     return record(
@@ -223,6 +247,11 @@ async def repair(service, request_id, ctx):
                         line_code=safe.line_code,
                         login_trace_id=trace_id,
                     )
+
+                finally:
+                    cancelled.set()
+                    for future, _, _ in pending:
+                        future.cancel()
 
             # Shield keeps the auth lock held until the SDK stops, even on host cancellation.
             task = asyncio.create_task(asyncio.to_thread(login))
