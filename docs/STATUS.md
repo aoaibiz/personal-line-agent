@@ -49,7 +49,7 @@ Public source is a fresh export, not the private development repository's commit
 - Fatal identity/cursor errors persist as blocked; pause is preserved. Store/keychain bootstrap failures wait in a blocked process instead of repeating OS prompts. Transient network errors back off. No outgoing action replay is performed by the supervisor.
 - Added owner authentication capability/repair/status tools. Form and URL elicitation are relayed through the fixed bridge, including completion notification. No QR/PIN appears in tool results. Unsupported hosts stop before starting authentication. Cancellation and duplicate requests are covered by synthetic tests.
 - Actual smartphone UI display, LINE-side forced expiry and completed phone-only reauthentication remain **unverified**. A synthetic MCP protocol test is not proof that a specific host supports the UI. Process death/host timeout during a real authentication flow remains unverified.
-- OS reboot/login, new OS user, and Windows remain unverified. This is still a source preview, not a completed all-environments release.
+- OS reboot/login was subsequently checked on 2026-10-24; see RECOVERY-TESTS.md for the legacy-startup conflict and migration scope. A new OS user and Windows remain unverified. This is still a source preview, not a completed all-environments release.
 
 ### Final verification details
 
