@@ -204,6 +204,10 @@ async def repair(service, request_id, ctx):
                     )
                 except Exception as error:
                     safe = diagnostic_error("authentication_ui", error)
+                    trace_id = getattr(safe, "login_trace_id", None)
+                    trace_id = trace_id if isinstance(trace_id, str) and re.fullmatch(
+                        r"[a-f0-9]{16}", trace_id
+                    ) else None
                     return record(
                         (
                             "cancelled"
@@ -215,6 +219,9 @@ async def repair(service, request_id, ctx):
                         ok=False,
                         error=safe.reason,
                         stage=safe.stage,
+                        http_status=safe.http_status,
+                        line_code=safe.line_code,
+                        login_trace_id=trace_id,
                     )
 
             # Shield keeps the auth lock held until the SDK stops, even on host cancellation.

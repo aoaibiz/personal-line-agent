@@ -204,6 +204,13 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=read)
     @boundary
+    def authentication_diagnostics(request_id: str) -> dict[str, Any]:
+        """認証の安全な工程・HTTPコード・待機時間だけ。旧記録の時刻候補は対応未確定。認証しない。"""
+        from .auth_diagnostics import read as read_diagnostics
+        return read_diagnostics(service, request_id)
+
+    @server.tool(annotations=read)
+    @boundary
     def account_counts(max_unread_pages: int = 100) -> dict[str, Any]:
         """LINEから最新の件数を取得。visible_friendsは公式・非表示を除く友だち数。
         joinedは参加グループ数。未読messagesはメッセージ数、chatsはトーク数。

@@ -188,6 +188,29 @@ def test_resumed_profile_failure_saves_rotated_tokens_without_new_login(tmp_path
     assert api.qr_attempts == 0
 
 
+def test_checkpoint_save_failure_retains_correlated_trace(tmp_path, monkeypatch):
+    from line_agent.diagnostics import DiagnosticError
+
+    adapter = LineAdapter(Store(tmp_path / "synthetic", Fernet.generate_key()))
+    api = SyntheticLogin(fail_stage="profile")
+    api.tokens.mid = "u" + "a" * 32
+    api.tokens.access_token = "synthetic-access"
+    adapter._save(api)
+    adapter.store.put("setting", "identity", {"mid": api.tokens.mid})
+    monkeypatch.setattr(adapter, "_client", lambda *args: api)
+
+    def fail_save(*args):
+        raise PermissionError("PRIVATE")
+
+    monkeypatch.setattr(adapter, "_save", fail_save)
+    with pytest.raises(DiagnosticError) as exc:
+        adapter.login(lambda qr: pytest.fail("must not reauthenticate"), lambda pin: None)
+    trace = adapter.store.get("login_trace", exc.value.login_trace_id)
+    assert trace["stage"] == exc.value.stage == "session_save"
+    assert trace["reason"] == exc.value.reason == "permission_denied"
+    assert "PRIVATE" not in str(trace)
+
+
 def test_explicit_key_repair_requires_fresh_qr_and_keeps_encrypted_recovery(tmp_path, monkeypatch):
     adapter = LineAdapter(Store(tmp_path / "synthetic", Fernet.generate_key()))
     owner = "u" + "a" * 32

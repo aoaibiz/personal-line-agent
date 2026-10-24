@@ -211,6 +211,7 @@ class LineAdapter:
                         "readiness": "encrypted_messages" if api.e2ee.is_ready() else "metadata_only"}
             except Exception as error:
                 failure = diagnostic_error(stage, error)
+                failure.login_trace_id = trace_id
                 record_trace(state="error", stage=failure.stage, reason=failure.reason,
                     failure_kind=transport_kind(error), finished_at=time.time())
                 # A successful refresh can rotate a single-use token before the retried
@@ -227,7 +228,11 @@ class LineAdapter:
                     try:
                         self._save(api)
                     except Exception as save_error:
-                        raise diagnostic_error("session_save", save_error) from None
+                        save_failure = diagnostic_error("session_save", save_error)
+                        save_failure.login_trace_id = trace_id
+                        record_trace(state="error", stage=save_failure.stage,
+                                     reason=save_failure.reason, finished_at=time.time())
+                        raise save_failure from None
                 raise failure from None
             finally:
                 if api is not None:
