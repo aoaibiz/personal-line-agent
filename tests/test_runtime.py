@@ -18,6 +18,7 @@ def private_runtime_home(tmp_path):
 
 
 def release(home, marker):
+    runtime.private_directory(home)
     identity = marker * 64
     target = home / 'releases' / identity
     python = runtime.release_python(target)
