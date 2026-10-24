@@ -8,4 +8,5 @@
 - Follow docs/OPERATIONS.md for backend updates. Stage a reviewed pinned source separately, verify the actual account connection, activate, and verify through the same stable bridge. Never roll back the account database or sender ledger with the code.
 - Do not read/show/export keys, credentials, QR/PIN, pairing files or raw upstream errors into model context, Git or shared logs. Use closed diagnostic codes.
 - Reauthentication still requires the real owner. If a supported smartphone authentication UI is unavailable, state that concrete limitation; do not bypass identity checks or pretend recovery succeeded.
-- macOS is the tested platform. Windows and every smartphone host are not verified. A passing mocked suite is not an actual LINE test.
+- macOS and Windows have the explicitly scoped real-account evidence in docs/STATUS.md. Windows setup uses docs/WINDOWS.md. Every smartphone host and phone-only forced reauthentication remain unverified. A passing mocked suite is not an actual LINE test.
+- Keep Windows account data separate from immutable releases. Use a dedicated per-user scheduled receiver, preserve its registered fixed entry and account ledger across backend updates, and verify actual connection/receiving after a change. Do not infer reboot or new-user compatibility from synthetic tests.

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from line_agent import supervisor
+from line_agent import runtime, supervisor
 
 
 class Stop:
@@ -26,6 +26,12 @@ def fixture_paths(tmp_path, monkeypatch):
     (target / ".venv/bin").mkdir(parents=True)
     monkeypatch.setattr(supervisor, "selected", lambda _: {"current": "a" * 64})
     monkeypatch.setattr(supervisor, "release_path", lambda *_: target)
+    def safe(path):
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(supervisor, "safe_directory", safe)
     return target
 
 
@@ -127,6 +133,7 @@ def service_label_distinct(root):
 
 def test_stop_terminates_only_owned_child(service, tmp_path, monkeypatch):
     fixture_paths(tmp_path, monkeypatch)
+    monkeypatch.setattr(supervisor.sys, "platform", "darwin")
     stop = threading.Event()
     events = []
 
@@ -166,6 +173,13 @@ def test_store_bootstrap_failure_blocks_without_repeated_keychain_attempts(tmp_p
             calls.append("wait")
 
     monkeypatch.setattr(supervisor, "supervise", fail)
+    def safe(path):
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(supervisor, "safe_directory", safe)
+    monkeypatch.setattr(runtime, "safe_directory", safe)
     supervisor.run_managed(tmp_path, tmp_path / "data", "test", "/fixture/node", Stopped())
     import json
 

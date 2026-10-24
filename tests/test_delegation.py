@@ -20,6 +20,15 @@ from line_agent.service import ACTION_MODELS, AgentService
 from line_agent.store import Store
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX compatibility contract")
+def test_posix_account_binding_preserves_existing_euid_digest(service):
+    service.store.put("setting", "identity", {"mid": service.line.ids[-1]})
+    expected = delegation.digest({
+        "path": str(service.store.path), "owner": service.line.ids[-1], "uid": os.geteuid(),
+    })
+    assert delegation.account_binding(service) == expected
+
+
 def enroll(service, monkeypatch, **changes):
     service.store.put("setting", "identity", {"mid": service.line.ids[-1]})
     data = dict(targets=[service.line.ids[0]], kinds=list(ACTION_MODELS), hours=24,
