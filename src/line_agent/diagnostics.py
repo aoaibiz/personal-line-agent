@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 STAGES = {
+    "authentication_ui",
     "group_key_register",
     "e2ee_login", "e2ee_restore", "e2ee_save", "message_decrypt",
     "event_receive",
@@ -28,6 +29,12 @@ STAGES = {
     "operation",
 }
 REASONS = {
+    "authentication_ui_unsupported": "このホストにはスマホ認証画面の対応機能がありません。認証は開始していません。",
+    "authentication_ui_unavailable": "本人確認画面を利用できませんでした。秘密はチャットへ返していません。",
+    "authentication_ui_timeout": "本人確認画面の待機時間が終了しました。",
+    "authentication_cancelled": "本人確認がキャンセルされました。",
+    "authentication_url_invalid": "LINE認証リンクの形式を確認できず停止しました。",
+    "authentication_pin_invalid": "LINE確認番号の形式を確認できず停止しました。",
     "e2ee_keys_missing": "復号用の鍵が読み込まれていません。暗号化本文は未取得です。",
     "e2ee_login_incomplete": "QRログインで復号用の鍵を取得できませんでした。接続完了とは扱っていません。",
     "e2ee_login_metadata_missing": "QRの確認後、復号鍵を取り込むための情報を受け取れませんでした。",

@@ -729,6 +729,7 @@ class AgentService:
                            and a["expires_at"] > time.time() for a in actions),
             "uncertain": [a["id"] for a in actions if a["state"] in ("sending", "unknown")],
             "receiver": self.store.get("setting", "receiver"),
+            "supervisor": self.store.get("setting", "receiver_supervisor"),
             "connected": self.store.get("setting", "identity") is not None,
             "e2ee": self.store.get("setting", "e2ee_health"),
             "assistance": {"runtime": self.store.get("setting", "assistance_runtime"),

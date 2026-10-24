@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "personal-line-agent"
-version = "0.3.0"
+version = "0.3.1"
 description = "Account-isolated LINE tools and durable relationship memory for MCP agents"
 readme = "README.md"
 license = "MIT"
@@ -26,6 +26,7 @@ dev = ["pytest>=8,<10", "ruff>=0.14,<1", "build>=1.3,<2", "pip-audit>=2.9,<3"]
 line-agent = "line_agent.cli:main"
 line-agent-bridge = "line_agent.bridge:main"
 line-agent-runtime = "line_agent.runtime:main"
+line-agent-service = "line_agent.supervisor:main"
 
 [tool.hatch.build]
 ignore-vcs = true

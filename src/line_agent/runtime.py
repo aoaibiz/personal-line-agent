@@ -164,14 +164,15 @@ def stage(home, source):
         return {"release": release, "state": "ready", "reused": False}
 
 
-async def invoke(home, release, root, account, method, *args):
+async def invoke(home, release, root, account, method, *args, elicitation_callback=None):
     target = release_path(home, release)
     params = StdioServerParameters(command=str(target / ".venv/bin/python"),
         args=["-I", "-B", "-m", "line_agent", "--root", str(Path(root).absolute()), "--account", account,
               "mcp", "--confirmation", "owner-delegation"])
     with open(os.devnull, "w") as errors:
         async with stdio_client(params, errlog=errors) as (read, write), ClientSession(
-            read, write, read_timeout_seconds=timedelta(seconds=180)
+            read, write, read_timeout_seconds=timedelta(seconds=600 if method == "call_tool" and args and args[0] == "authentication_repair" else 180),
+            elicitation_callback=elicitation_callback
         ) as session:
             await session.initialize()
             return await getattr(session, method)(*args)

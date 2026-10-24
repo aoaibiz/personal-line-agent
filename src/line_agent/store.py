@@ -152,7 +152,7 @@ class Store:
         """Serialize SDK operations/credential rotation across MCP and worker processes."""
         import fcntl
 
-        if name not in ("sdk", "worker", "assistance", "native-confirmation", "requests"):
+        if name not in ("sdk", "worker", "assistance", "native-confirmation", "requests", "supervisor", "authentication"):
             raise ValueError("不明なロックです")
         fd = os.open(self.path / f"{name}.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:

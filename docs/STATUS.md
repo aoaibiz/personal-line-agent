@@ -1,6 +1,6 @@
 # Verification status — 2026-10-24
 
-Release candidate: **0.3.0 candidate / source preview**. This is an engineering verification record, not a guarantee for all accounts. Clarified requirement: human terminal use is allowed during initial installation, configuration and authentication. After setup, operation, updates, reconnection and recovery must not require human PC interaction. An initial-setup GUI is not a completion requirement.
+Release candidate: **0.3.1 candidate / source preview**. This is an engineering verification record, not a guarantee for all accounts. Clarified requirement: human terminal use is allowed during initial installation, configuration and authentication. After setup, operation, updates, reconnection and recovery must not require human PC interaction. An initial-setup GUI is not a completion requirement.
 
 ## Earlier 0.2.2 checks
 
@@ -41,3 +41,21 @@ Public source is a fresh export, not the private development repository's commit
 ## Intentional recovery tests
 
 [Recovery test results](RECOVERY-TESTS.md) record actual process/network/update failures. Receiver auto-restart and the nonterminal reauthentication entry did not meet the post-setup requirement. Existing data and permissions were preserved and the receiver was restored by the agent. These are product-completion blockers, not passing tests.
+
+## 0.3.1 candidate: receiver supervision and owner authentication UI
+
+- macOS launchd owns an account-scoped supervisor; only its own read-only worker is restarted. Real SIGTERM/SIGKILL of the worker recovered in 3.66/3.78 seconds; SIGTERM/SIGKILL of the supervisor recovered in 4.17/10.29 seconds. Each reached actual LINE `listening` without owner PC operation.
+- Same database inode, contacts, integrity, authority hash and uncertain operations preserved. Message count did not decrease. A subsequent incoming test from the owner's second account was decrypted and stored once, 0.243 seconds after its server timestamp. This is live reception, not a stop-window backfill result.
+- Fatal identity/cursor errors persist as blocked; pause is preserved. Store/keychain bootstrap failures wait in a blocked process instead of repeating OS prompts. Transient network errors back off. No outgoing action replay is performed by the supervisor.
+- Added owner authentication capability/repair/status tools. Form and URL elicitation are relayed through the fixed bridge, including completion notification. No QR/PIN appears in tool results. Unsupported hosts stop before starting authentication. Cancellation and duplicate requests are covered by synthetic tests.
+- Actual smartphone UI display, LINE-side forced expiry and completed phone-only reauthentication remain **unverified**. A synthetic MCP protocol test is not proof that a specific host supports the UI. Process death/host timeout during a real authentication flow remains unverified.
+- OS reboot/login, new OS user, and Windows remain unverified. This is still a source preview, not a completed all-environments release.
+
+### Final verification details
+
+- Current source and an isolated non-editable 0.3.1 wheel passed the regression suite (265 tests). Ruff and distribution-content checks passed (wheel 32 entries, sdist 67 entries).
+- Final macOS supervisor replacement completed after fixing asynchronous `launchctl bootout` teardown. The final supervisor was then killed and automatically returned to actual receiving in 11.26 seconds.
+- A real stdio bridge exposed 35 tools (33 backend + 2 bridge), verified the actual LINE profile and database integrity, and refused authentication before starting it when the client lacked form/URL support.
+- Independent correctness and security reviews found no unresolved critical/high code findings in this change. This does not waive the unverified smartphone authentication requirement.
+- Dependency audit reported no known vulnerabilities for auditable registry packages. The pinned Git dependency and this unpublished application version were not in the registry advisory scan; their absence is not an audit pass for their source code.
+- Reusable lesson: macOS service `bootout` may acknowledge before teardown finishes. Wait for the scoped service to disappear before bootstrapping its replacement; preserve the prior plist and account data for rollback. Verified 2026-10-24; applies to this launchd receiver deployment, not a claim about other platforms.

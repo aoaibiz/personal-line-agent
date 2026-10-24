@@ -180,6 +180,30 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=read)
     @boundary
+    def authentication_capabilities(ctx: Context) -> dict[str, Any]:
+        """本人確認UIの接続機能。対応申告だけで実表示を確認済みとはしない。"""
+        from .authentication import capabilities
+        return capabilities(ctx)
+
+    @server.tool(annotations=write)
+    @boundary
+    async def authentication_repair(request_id: str, ctx: Context) -> dict[str, Any]:
+        """本人が依頼した再認証。QRリンク/PINはホストの本人画面へ直接渡し本文に返さない。
+        同じUUIDは再実行せず状態を返す。通常操作の承認や権限拡張には使わない。"""
+        if public_url or confirmation != "owner-delegation":
+            return {"ok": False, "error": "authentication_connection_unsupported", "started": False}
+        from .authentication import repair
+        return await repair(service, request_id, ctx)
+
+    @server.tool(annotations=read)
+    @boundary
+    def authentication_status(request_id: str) -> dict[str, Any]:
+        """再認証の状態だけを照会する。秘密情報やLINEの上流応答は返さない。"""
+        from .authentication import status
+        return status(service, request_id)
+
+    @server.tool(annotations=read)
+    @boundary
     def account_counts(max_unread_pages: int = 100) -> dict[str, Any]:
         """LINEから最新の件数を取得。visible_friendsは公式・非表示を除く友だち数。
         joinedは参加グループ数。未読messagesはメッセージ数、chatsはトーク数。
