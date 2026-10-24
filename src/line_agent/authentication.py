@@ -34,7 +34,10 @@ def valid_line_url(value):
             or (
                 url.scheme == "https"
                 and url.netloc == "line.me"
-                and url.path.startswith("/R/au/q/")
+                and (
+                    url.path.startswith("/R/au/q/")
+                    or re.fullmatch(r"/R/au/lgn/sq/[A-Za-z0-9_-]+", url.path) is not None
+                )
             )
             or (
                 url.scheme == "https"

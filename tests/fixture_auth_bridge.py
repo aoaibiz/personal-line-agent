@@ -1,6 +1,7 @@
 """Synthetic downstream; exercises real upstream MCP elicitation transport only."""
 
 import asyncio
+import sys
 from pathlib import Path
 
 from mcp import types
@@ -22,7 +23,7 @@ async def fake_backend(*args, elicitation_callback=None):
         types.ElicitRequestURLParams(
             mode="url",
             message="Synthetic fixture only",
-            url="line://au/q/SYNTHETIC",
+            url=sys.argv[1] if len(sys.argv) > 1 else "line://au/q/SYNTHETIC",
             elicitationId="11111111-1111-4111-8111-111111111111",
         ),
     )

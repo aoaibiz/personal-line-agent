@@ -116,6 +116,50 @@ def test_allowlist():
     assert valid_line_url("line://au/q/synthetic?secret=test")
 
 
+def test_current_line_login_route_preserves_link_and_secret_only_in_host_ui(service):
+    setup(service)
+    ctx, events = context()
+    value = "https://line.me/R/au/lgn/sq/synthetic_123-abc?secret=SYNTHETIC%2BKEY%3D&e2eeVersion=1"
+    delivered = []
+
+    def login(**kwargs):
+        kwargs["on_qr"](value)
+        return {"connected": True, "e2ee_ready": True}
+
+    async def link(message, url, elicitation_id):
+        delivered.append(url)
+        return types.ElicitResult(action="accept")
+
+    service.line.login = login
+    ctx.session.elicit_url = link
+    result = asyncio.run(repair(service, str(uuid.uuid4()), ctx))
+    assert result["state"] == "complete" and delivered == [value]
+    assert events == ["form", "complete"]
+    assert "SYNTHETIC" not in str(result)
+    assert value not in str(service.store.get("authentication_request", result["request_id"]))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "http://line.me/R/au/lgn/sq/abc",
+        "https://line.me.evil.invalid/R/au/lgn/sq/abc",
+        "https://line.me@evil.invalid/R/au/lgn/sq/abc",
+        "https://user@line.me/R/au/lgn/sq/abc",
+        "https://line.me:443/R/au/lgn/sq/abc",
+        "https://line.me/R/au/lgn/sq/abc#private",
+        "https://line.me/R/au/lgn/sq/",
+        "https://line.me/R/au/lgn/sq/../elsewhere",
+        "https://line.me/R/au/lgn/sq/%2e%2e",
+        "https://line.me/R/au/lgn/sq/abc/extra",
+        "https://line.me/R/au/lgn/sq/abc\\evil",
+        "https://line.me/R/au/lgn/sq/abc\n",
+    ],
+)
+def test_current_line_login_route_rejects_other_destinations(value):
+    assert not valid_line_url(value)
+
+
 def test_repeated_cancellation_keeps_auth_lock_until_sdk_thread_exits(service):
     import threading
 
