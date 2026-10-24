@@ -33,7 +33,14 @@ def login(on_qr, on_pin, **kwargs):
     return {"connected": True, "e2ee_ready": True}
 
 
-if sys.argv[1] == "backend":
+if sys.argv[1] in {"backend", "backend-timeout"}:
+    if sys.argv[1] == "backend-timeout":
+        original_wait_for = asyncio.wait_for
+
+        async def shortened_wait_for(awaitable, timeout):
+            return await original_wait_for(awaitable, 0.05 if timeout == 90 else timeout)
+
+        asyncio.wait_for = shortened_wait_for
     server = FastMCP("synthetic-auth-only")
     service = SimpleNamespace(store=MemoryStore(), line=SimpleNamespace(login=login))
 
