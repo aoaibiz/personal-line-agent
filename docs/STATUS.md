@@ -1,6 +1,6 @@
 # Verification status — 2026-10-24
 
-Release candidate: **0.3.1 candidate / source preview**. This is an engineering verification record, not a guarantee for all accounts. Clarified requirement: human terminal use is allowed during initial installation, configuration and authentication. After setup, operation, updates, reconnection and recovery must not require human PC interaction. An initial-setup GUI is not a completion requirement.
+Published source: **0.3.1 / macOS-tested scope**. The final owner-approved scope and three independent security review results are in [FINAL-REVIEW.md](FINAL-REVIEW.md). Additional real reauthentication testing was excluded by the owner; unverified recovery remains unverified. This is an engineering verification record, not a guarantee for all accounts. Clarified requirement: human terminal use is allowed during initial installation, configuration and authentication. After setup, operation, updates, reconnection and recovery must not require human PC interaction. An initial-setup GUI is not a completion requirement.
 
 ## Earlier 0.2.2 checks
 
@@ -27,7 +27,7 @@ These tests establish the tested paths and account conditions only. API presence
 
 ## Unverified / incomplete
 
-- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, receiver-service supervision, and OS login/keychain interaction. The verified backend update path does not establish these paths. Initial terminal-based installation/authentication is allowed.
+- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, and a new OS user/keychain setup. Receiver-service supervision and the observed OS restart are covered by the later dated records below. Initial terminal-based installation/authentication is allowed.
 - A fresh user's complete authentication and smartphone-to-host setup for every supported host.
 - All LINE message/media types, every account configuration and future upstream behavior.
 - Full smartphone history retrieval, expired media restoration, OpenChat and calendar integration.
@@ -40,7 +40,7 @@ Public source is a fresh export, not the private development repository's commit
 
 ## Intentional recovery tests
 
-[Recovery test results](RECOVERY-TESTS.md) record actual process/network/update failures. Receiver auto-restart and the nonterminal reauthentication entry did not meet the post-setup requirement. Existing data and permissions were preserved and the receiver was restored by the agent. These are product-completion blockers, not passing tests.
+[Recovery test results](RECOVERY-TESTS.md) record actual process/network/update failures. Receiver auto-restart and the nonterminal reauthentication entry did not meet the post-setup requirement. Existing data and permissions were preserved and the receiver was restored by the agent. These were failures in that earlier version, not passing tests. Later receiver-supervision fixes are recorded below; smartphone-only reauthentication remains excluded and unverified in the owner-approved release scope.
 
 ## 0.3.1 candidate: receiver supervision and owner authentication UI
 
@@ -49,7 +49,7 @@ Public source is a fresh export, not the private development repository's commit
 - Fatal identity/cursor errors persist as blocked; pause is preserved. Store/keychain bootstrap failures wait in a blocked process instead of repeating OS prompts. Transient network errors back off. No outgoing action replay is performed by the supervisor.
 - Added owner authentication capability/repair/status tools. Form and URL elicitation are relayed through the fixed bridge, including completion notification. No QR/PIN appears in tool results. Unsupported hosts stop before starting authentication. Cancellation and duplicate requests are covered by synthetic tests.
 - Actual smartphone UI display, LINE-side forced expiry and completed phone-only reauthentication remain **unverified**. A synthetic MCP protocol test is not proof that a specific host supports the UI. Process death/host timeout during a real authentication flow remains unverified.
-- OS reboot/login was subsequently checked on 2026-10-24; see RECOVERY-TESTS.md for the legacy-startup conflict and migration scope. A new OS user and Windows remain unverified. This is still a source preview, not a completed all-environments release.
+- OS reboot/login was subsequently checked on 2026-10-24; see RECOVERY-TESTS.md for the legacy-startup conflict and migration scope. A new OS user and Windows remain unverified. This does not establish a completed all-environments release.
 
 ### Final verification details
 
