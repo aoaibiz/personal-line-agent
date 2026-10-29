@@ -1,7 +1,7 @@
 # 受信画像追加 0.4.2 の検証記録
 
 対象コード: c81173467e9d8cdf3f493b77db0d60f01f3e5e33。
-比較基準: origin/main 75f725b（0.4.1）。後続の記録コミットは文書のみ。
+比較基準: origin/main 75f725b（0.4.1）。後続でWindows実CIの権限検査を追加し、下記のDACL保護設定を修正した。
 
 ## 出荷条件
 
@@ -40,3 +40,9 @@
 **高: アルバム原本取得という主機能が動かないため未出荷。** 別のdraft PR候補として記録し、mainと稼働版には含めない。通常トークに直接届いた画像取得とは区別する。
 
 実会話・画像・認証情報は公開記録に含めない。対象グループの内容と5画像の所在は、所有者が指定したHP担当タスクへ非公開で引き継いだ。
+
+## Windows CIで追加発見した保存処理の問題
+
+親ディレクトリ・新規ファイルのDACL保護bitが実際には未設定だった。共通helperのSetFileSecurity引数だけでは設定できておらず、SECURITY_DESCRIPTOR自身にSetSecurityDescriptorControlを適用する修正を追加した。Microsoftの[保護bit仕様](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-setsecuritydescriptorcontrol)とpywin32の実装を照合。
+
+高: 上位フォルダのACLが後から変更された条件で不要な継承が起こり得る。外部LINE本文から直接変更する経路はないが、私有保存の境界に関わるため修正前はmainへ統合しなかった。親と画像の所有者・実ACL・保護bitをWindows CIで検査する。実機LINE利用との区別は維持する。

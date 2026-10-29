@@ -43,8 +43,7 @@ def test_scope_and_private_save(service):
             sd = win32security.GetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION |
                                                win32security.OWNER_SECURITY_INFORMATION)
             assert sd.GetSecurityDescriptorOwner() == user
-            if path == p.parent:
-                assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
+            assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
             acl = sd.GetSecurityDescriptorDacl()
             assert acl is not None and acl.GetAceCount() > 0
             for index in range(acl.GetAceCount()):
