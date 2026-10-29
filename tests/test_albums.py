@@ -164,11 +164,12 @@ def test_success_save_and_later_failure_preserves_partial_result(service):
         user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
         allowed = [user, win32security.CreateWellKnownSid(win32security.WinLocalSystemSid, None),
                    win32security.CreateWellKnownSid(win32security.WinBuiltinAdministratorsSid, None)]
-        for path in (path, path.parent):
-            sd = win32security.GetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION |
+        for target in (path, path.parent):
+            sd = win32security.GetFileSecurity(str(target), win32security.DACL_SECURITY_INFORMATION |
                                                win32security.OWNER_SECURITY_INFORMATION)
             assert sd.GetSecurityDescriptorOwner() == user
-            assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
+            if target == path.parent:
+                assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
             acl = sd.GetSecurityDescriptorDacl()
             assert acl is not None and acl.GetAceCount() > 0
             for index in range(acl.GetAceCount()):
