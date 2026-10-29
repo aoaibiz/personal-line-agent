@@ -9,6 +9,8 @@ import re
 import uuid
 from urllib.parse import urlsplit
 
+from .platform_security import private_directory, private_open, reject_reparse
+
 LIMIT = 32 * 1024 * 1024
 TOKEN = re.compile(r"[A-Za-z0-9_-]{1,200}\Z")
 READ_RPC = {"Talk.TalkService." + name for name in (
@@ -134,15 +136,16 @@ def fetch_images(service, chat, message_ids):
                 folder = service.store.path / "received-images"
                 if folder.is_symlink():
                     raise ValueError("unsafe_output")
-                folder.mkdir(mode=0o700, exist_ok=True)
-                os.chmod(folder, 0o700)
+                private_directory(folder)
                 entries = list(folder.iterdir())
+                for entry in entries:
+                    reject_reparse(entry)
                 if len(entries) >= 200 or any(p.is_symlink() or not p.is_file() for p in entries):
                     raise ValueError("output_limit_or_unsafe_entry")
                 if sum(p.stat().st_size for p in entries) + len(data) > 256 * 1024 * 1024:
                     raise ValueError("output_quota_exceeded")
                 path = folder / (uuid.uuid4().hex + ext)
-                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                fd = private_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, "wb") as stream:
                     stream.write(data)
                 results.append({"message_id": message_id, "state": "saved",
