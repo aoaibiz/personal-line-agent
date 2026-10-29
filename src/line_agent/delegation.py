@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 import uuid
 from datetime import datetime
@@ -70,7 +69,8 @@ def account_binding(service):
     owner = (service.store.get("setting", "identity") or {}).get("mid")
     if not owner or not is_user(owner):
         raise DelegationDenied("owner_identity_unavailable")
-    return digest({"path": str(service.store.path), "owner": owner, "uid": os.geteuid()})
+    from .platform_security import current_os_principal
+    return digest({"path": str(service.store.path), "owner": owner, "uid": current_os_principal()})
 
 
 def local_principal(service):

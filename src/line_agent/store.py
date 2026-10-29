@@ -14,6 +14,14 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
+from .platform_security import (
+    exclusive_file,
+    private_directory,
+    private_file,
+    private_open,
+    reject_reparse,
+)
+
 
 def account_path(root: Path, account: str) -> Path:
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,47}", account):
@@ -24,20 +32,23 @@ def account_path(root: Path, account: str) -> Path:
 class Store:
     def __init__(self, path: Path, key: bytes):
         path = Path(path).absolute()
-        if any(p.is_symlink() for p in [path, *path.parents]):
-            raise ValueError("保存先にシンボリックリンクは使えません")
-        path.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(path, 0o700)
+        try:
+            reject_reparse(path)
+        except ValueError:
+            raise ValueError("保存先にシンボリックリンクは使えません") from None
+        private_directory(path)
         self.path = path
         self.cipher = Fernet(key)
         self.index_key = hmac.digest(base64.urlsafe_b64decode(key), b"record-index-v1", "sha256")
         self.db = path / "records.sqlite3"
         for filename in (self.db, path / "sdk.lock"):
-            if filename.is_symlink():
-                raise ValueError("保存ファイルにシンボリックリンクは使えません")
-        fd = os.open(self.db, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+            try:
+                reject_reparse(filename)
+            except ValueError:
+                raise ValueError("保存ファイルにシンボリックリンクは使えません") from None
+        fd = private_open(self.db, os.O_CREAT | os.O_RDWR, 0o600)
         os.close(fd)
-        os.chmod(self.db, 0o600)
+        private_file(self.db)
         with self.connect() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute(
@@ -150,17 +161,10 @@ class Store:
     @contextmanager
     def exclusive(self, name="sdk", blocking=True):
         """Serialize SDK operations/credential rotation across MCP and worker processes."""
-        import fcntl
-
         if name not in ("sdk", "worker", "assistance", "native-confirmation", "requests", "supervisor", "authentication"):
             raise ValueError("不明なロックです")
-        fd = os.open(self.path / f"{name}.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        with exclusive_file(self.path / f"{name}.lock", blocking=blocking):
             yield
-        finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            os.close(fd)
 
 
 class _Transaction:

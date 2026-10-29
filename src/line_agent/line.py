@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import time
 
 from .counts import contact_counts, group_counts, nonnegative_integer
 from .identifiers import id_kind
+from .platform_security import find_executable
 from .store import Store
 
 
@@ -25,6 +25,10 @@ class LineAdapter:
 
         okline.transport._DEBUG = False
         logging.getLogger("okline").setLevel(logging.CRITICAL + 1)
+        node = find_executable(os.environ.get("LINE_NODE") or "node")
+        if node is None:
+            from .diagnostics import DiagnosticError
+            raise DiagnosticError("sdk_init", "dependency_missing")
         data = session or {}
         api = OkLine(
             access_token=data.get("accessToken"),
@@ -32,7 +36,7 @@ class LineAdapter:
             certificate=data.get("certificate"),
             mid=data.get("mid"),
             record=False,
-            config=LineConfig(max_retries=0, timeout=30),
+            config=LineConfig(max_retries=0, timeout=30, node_path=node),
         )
         from .e2ee_state import restore
 
@@ -288,7 +292,7 @@ class LineAdapter:
         """One bounded, SDK-serialized SSE connection with no background token threads."""
         from .realtime import ReceiveFailure, revision
 
-        if shutil.which(os.environ.get("LINE_NODE") or "node") is None:
+        if find_executable(os.environ.get("LINE_NODE") or "node") is None:
             raise ReceiveFailure("dependency_missing")
         identity_rejected = False
 

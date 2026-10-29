@@ -23,4 +23,13 @@ Diagnostics avoid full upstream responses and private exception contents. Public
 
 ## Verification scope
 
+Version 0.4.1 fixes executable search-path hijacking (CWE-426): an executable
+planted in the owner's working directory could be selected by Windows command
+lookup. OS utilities now use the OS-reported system directory; uv, Node and Codex
+are resolved from absolute owner-configured PATH directories and passed as absolute
+paths. Empty and relative PATH entries are ignored. Owner-selected absolute paths
+and their installed binaries remain trusted configuration. Updating only the selected
+backend leaves an older fixed entry or supervisor installed; update those callers too,
+as described in [Windows setup](docs/WINDOWS.md).
+
 See [docs/STATUS.md](docs/STATUS.md) for dated checks and exclusions. Automated checks and source review do not establish immunity to unknown vulnerabilities or guarantee availability of the external LINE service. The pinned protocol dependency is not covered by the PyPI advisory database and has not received a full independent cryptographic audit here.

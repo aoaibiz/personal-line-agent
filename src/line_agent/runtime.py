@@ -11,8 +11,8 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
+import sys
 import tempfile
 from contextlib import contextmanager
 from datetime import timedelta
@@ -21,6 +21,17 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from .platform_security import (
+    exclusive_file,
+    find_executable,
+    hidden_subprocess_kwargs,
+    private_directory,
+    private_file,
+    private_open,
+    reject_reparse,
+    release_python,
+)
+
 
 class RuntimeFailure(Exception):
     pass
@@ -28,35 +39,42 @@ class RuntimeFailure(Exception):
 
 def safe_directory(path):
     path = Path(path).absolute()
-    if any(p.is_symlink() for p in [path, *path.parents]):
-        raise RuntimeFailure("runtime_path_symlink")
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o022:
-        raise RuntimeFailure("runtime_path_not_private")
+    try:
+        reject_reparse(path)
+    except ValueError:
+        raise RuntimeFailure("runtime_path_symlink") from None
+    try:
+        private_directory(path, strict=True)
+    except PermissionError:
+        raise RuntimeFailure("runtime_path_not_private") from None
     return path
 
 
 @contextmanager
 def locked(home):
-    import fcntl
     home = safe_directory(home)
-    fd = os.open(home / "management.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield home
-    finally:
-        os.close(fd)
+        with exclusive_file(home / "management.lock", blocking=False):
+            yield home
+    except BlockingIOError:
+        raise RuntimeFailure("runtime_locked") from None
 
 
 def read_json(path):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd) as stream:
+    try:
+        private_file(path, strict=True)
+    except (PermissionError, ValueError):
+        raise RuntimeFailure("runtime_metadata_not_private") from None
+    fd = private_open(path, os.O_RDONLY)
+    with os.fdopen(fd, encoding="utf-8") as stream:
         if os.fstat(stream.fileno()).st_size > 65536:
             raise RuntimeFailure("runtime_metadata_oversize")
         return json.load(stream)
 
 
 def write_json(path, data):
+    path = Path(path)
+    safe_directory(path.parent)
     fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as stream:
@@ -64,6 +82,7 @@ def write_json(path, data):
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        private_file(path)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
@@ -74,14 +93,24 @@ def release_path(home, release):
         raise RuntimeFailure("invalid_release_id")
     home = safe_directory(home)
     target = home / "releases" / release
-    if not target.is_dir() or any(p.is_symlink() for p in [target, target.parent]):
+    if not target.is_dir():
         raise RuntimeFailure("release_missing")
+    try:
+        reject_reparse(target)
+    except ValueError:
+        raise RuntimeFailure("release_missing") from None
     metadata = read_json(target / "release.json")
     if metadata.get("id") != release or metadata.get("state") != "ready":
         raise RuntimeFailure("release_not_ready")
     # uv uses a Python symlink inside its venv; that specific executable is expected.
-    if not (target / ".venv/bin/python").is_file():
+    interpreter = release_python(target)
+    if not interpreter.is_file():
         raise RuntimeFailure("release_python_missing")
+    if os.name == "nt":
+        try:
+            private_file(interpreter, strict=True)
+        except (PermissionError, ValueError):
+            raise RuntimeFailure("release_python_not_private") from None
     return target
 
 
@@ -109,7 +138,12 @@ def stage(home, source):
     files = {}
     for name in names:
         path = source / name
-        if any(p.is_symlink() for p in [path, *path.parents]) or not path.is_file():
+        try:
+            invalid = not path.is_file()
+            reject_reparse(path)
+        except ValueError:
+            invalid = True
+        if invalid:
             raise RuntimeFailure("source_file_invalid")
         data = path.read_bytes()
         if len(data) > 4 * 1024 * 1024:
@@ -132,31 +166,45 @@ def stage(home, source):
             if (home / "active.json").exists() and release in selected(home, require_ready=False).values():
                 raise RuntimeFailure("active_release_not_rebuildable")
         else:
-            target.mkdir(mode=0o700)
+            private_directory(target)
         for name, data in files.items():
             path = target / name
             safe_directory(path.parent)
             if path.exists():
-                if path.is_symlink() or path.read_bytes() != data:
+                try:
+                    reject_reparse(path)
+                except ValueError:
+                    raise RuntimeFailure("candidate_source_changed") from None
+                if path.read_bytes() != data:
                     raise RuntimeFailure("candidate_source_changed")
             else:
-                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                fd = private_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, "wb") as stream:
                     stream.write(data)
-        uv = shutil.which("uv")
+                private_file(path)
+        uv = find_executable("uv")
         if not uv:
             raise RuntimeFailure("uv_missing")
         # No shell; stdout/stderr can contain private local paths. Keep them out of chat.
-        result = subprocess.run([uv, "sync", "--project", str(target), "--frozen", "--no-dev", "--no-editable"],
+        result = subprocess.run([uv, "sync", "--project", str(target), "--python", sys.executable,
+            "--frozen", "--no-dev", "--no-editable"],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=300, check=False)
+            timeout=300, check=False, **hidden_subprocess_kwargs())
         if result.returncode:
             write_json(target / "release.json", {"id": release, "state": "install_failed"})
             raise RuntimeFailure("release_install_failed")
-        bootstrap = subprocess.run([str(target / ".venv/bin/python"), "-I", "-c",
+        if os.name == "nt":
+            # uv uses the token's default owner when creating its launcher.
+            # Normalize only this just-installed, trusted candidate; reused
+            # ready releases still pass release_path's strict validation.
+            try:
+                private_file(release_python(target))
+            except (PermissionError, ValueError):
+                raise RuntimeFailure("release_python_not_private") from None
+        bootstrap = subprocess.run([str(release_python(target)), "-I", "-c",
             "import line_agent.bridge, line_agent.server, line_agent.lifecycle"],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=30, check=False)
+            timeout=30, check=False, **hidden_subprocess_kwargs())
         if bootstrap.returncode:
             write_json(target / "release.json", {"id": release, "state": "bootstrap_failed"})
             raise RuntimeFailure("release_bootstrap_failed")
@@ -166,7 +214,7 @@ def stage(home, source):
 
 async def invoke(home, release, root, account, method, *args, elicitation_callback=None):
     target = release_path(home, release)
-    params = StdioServerParameters(command=str(target / ".venv/bin/python"),
+    params = StdioServerParameters(command=str(release_python(target)),
         args=["-I", "-B", "-m", "line_agent", "--root", str(Path(root).absolute()), "--account", account,
               "mcp", "--confirmation", "owner-delegation"])
     with open(os.devnull, "w") as errors:
