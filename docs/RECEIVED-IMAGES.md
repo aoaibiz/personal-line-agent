@@ -8,6 +8,8 @@
 
 アルバム一覧・アルバム画像、古い履歴のページ巡回、個人トークはこの追加機能の対象外。全メディア対応とはしない。個人情報を含む実ID・画像は公開ソースに入れない。
 
-反映版: 8e774ca9be80f3aff73757d7045eaa941b6847ce00a672a7864c2fe8009de385
-切戻し先: 52e48c5cf08ee9f9682c53d686bf5f2824912af4779b2efee31ef84cc5ff77cf
+反映版（0.4.2）: 7f61a378c8d137cffcbbba70edd5212827e838915f7c78c156408e3beb0adf45
+切戻し先: 8e774ca9be80f3aff73757d7045eaa941b6847ce00a672a7864c2fe8009de385
 通常のruntime rollbackでコードだけを戻す。アカウントDB・認証・送信台帳は戻さない。GitHubの公開状態とコミットは docs/SECURITY-REVIEW-20261029.md に記録する。
+
+最終公開候補で通常グループの画像1件を正式MCPから再取得し、実画像の表示と既存ファイルとのSHA-256一致を確認。接続確認はconnection_verified=true、store_integrity=ok、e2ee_state=ready、receiver_state=listening。既存の結果不明操作3件はこの読み取りとは別であり、再実行していない。
