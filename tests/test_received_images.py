@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -31,8 +32,27 @@ def test_scope_and_private_save(service):
     assert [x['state'] for x in r['items']] == ['saved', 'scope_or_type_mismatch', 'scope_or_type_mismatch', 'not_in_recent_page']
     assert len(calls) == 1
     p = Path(r['items'][0]['path'])
-    assert p.stat().st_mode & 0o777 == 0o600
-    assert p.parent.stat().st_mode & 0o777 == 0o700
+    if os.name == "nt":
+        import win32api
+        import win32security
+        token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32security.TOKEN_QUERY)
+        user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        allowed = [user, win32security.CreateWellKnownSid(win32security.WinLocalSystemSid, None),
+                   win32security.CreateWellKnownSid(win32security.WinBuiltinAdministratorsSid, None)]
+        for path in (p, p.parent):
+            sd = win32security.GetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION |
+                                               win32security.OWNER_SECURITY_INFORMATION)
+            assert sd.GetSecurityDescriptorOwner() == user
+            assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
+            acl = sd.GetSecurityDescriptorDacl()
+            assert acl is not None and acl.GetAceCount() > 0
+            for index in range(acl.GetAceCount()):
+                ace = acl.GetAce(index)
+                assert ace[0][0] == win32security.ACCESS_ALLOWED_ACE_TYPE
+                assert any(ace[2] == principal for principal in allowed)
+    else:
+        assert p.stat().st_mode & 0o777 == 0o600
+        assert p.parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_guard_blocks_writes_and_foreign_host():
