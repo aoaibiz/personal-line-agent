@@ -26,6 +26,10 @@ def test_new_private_objects_reopen_with_actual_user_owner(tmp_path):
     user = security._windows_identity()[0]
     assert owner(home) == user
     assert owner(path) == user
+    import win32security
+    for target in (home, path):
+        descriptor = win32security.GetFileSecurity(str(target), win32security.DACL_SECURITY_INFORMATION)
+        assert descriptor.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
     security.private_directory(home, strict=True)
     security.private_file(path, strict=True)
 

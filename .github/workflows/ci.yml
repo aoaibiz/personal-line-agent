@@ -17,6 +17,7 @@ jobs:
         with:
           version: "0.10.10"
       - run: uv sync --frozen --python 3.12
+      - run: uv run --frozen pytest tests/test_received_images.py tests/test_windows_ownership.py::test_new_private_objects_reopen_with_actual_user_owner
       - run: uv run --frozen pytest
       - run: uv run --frozen ruff check src tests
       - run: uv build --offline
