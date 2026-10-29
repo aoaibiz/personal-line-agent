@@ -267,6 +267,16 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=local)
     @boundary
+    def received_images_get(chat: str, message_ids: list[str]) -> dict[str, Any]:
+        """指定トークの直近100件にある画像を最大5件保存。URL・保存先の指定不可。
+        鍵や本文メタデータは返さない。送信・既読・鍵登録は行わない。
+        画像の実表示は保存後に別途確認。アルバムはこの機能の対象外。
+        """
+        from .received_media import fetch_images
+        return fetch_images(service, chat, message_ids)
+
+    @server.tool(annotations=local)
+    @boundary
     def history_sync(chat: str, job_id: str | None = None, max_pages: int = 10) -> dict[str, Any]:
         """サーバー側で返る履歴を遡る。running/interruptedなら同じjob_idで再開。
         complete/limitedはジョブの終了。スマホ内の全履歴の取得完了ではない。
