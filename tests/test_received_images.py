@@ -146,3 +146,29 @@ def test_rpc_requires_exact_namespace():
     guarded_transport(api)
     with pytest.raises(ValueError, match='non_read_rpc_denied'):
         api.transport.call('Other.Service.getRecentMessagesV2')
+
+
+def test_pause_while_waiting_for_sdk_stops_read(service):
+    api = SimpleNamespace()
+    def call(operation):
+        service.pause()
+        return operation(api)
+    service.line.call = call
+    result = fetch_images(service, 'c'+'1'*32, ['123'])
+    assert result['reason'] == 'agent_paused'
+
+
+def test_pause_between_images_stops_second_download(service):
+    chat = 'c'+'1'*32
+    api = SimpleNamespace(transport=SimpleNamespace(call=lambda *a: None, _send=lambda *a: None),
+        get_recent_messages=lambda *a: [{'id':i, 'to':chat, 'contentType':1} for i in ['123','124']])
+    calls = []
+    def download(*a, **k):
+        calls.append(a)
+        service.pause()
+        return b'\xff\xd8\xffsynthetic'
+    api.obs = SimpleNamespace(download_object=download)
+    service.line.call = lambda operation: operation(api)
+    result = fetch_images(service, chat, ['123','124'])
+    assert result['reason'] == 'agent_paused'
+    assert len(calls) == 1 and len(result['items']) == 1

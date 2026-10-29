@@ -87,12 +87,16 @@ def fetch_images(service, chat, message_ids):
     def operation(api):
         stage = "history_lookup"
         try:
+            if service.paused():
+                raise ValueError("agent_paused")
             guarded_transport(api)
             raw = api.get_recent_messages(chat, 100)
             if not isinstance(raw, list):
                 raise ValueError("unexpected_history")
             results = []
             for message_id in message_ids:
+                if service.paused():
+                    raise ValueError("agent_paused")
                 matches = [m for m in raw if str(m.get("id")) == message_id]
                 if len(matches) != 1:
                     results.append({"message_id": message_id, "state": "not_in_recent_page"})
@@ -110,6 +114,8 @@ def fetch_images(service, chat, message_ids):
                 if not all(isinstance(v, str) and TOKEN.fullmatch(v) for v in (oid, sid)):
                     raise ValueError("invalid_reference")
                 stage = "image_download"
+                if service.paused():
+                    raise ValueError("agent_paused")
                 data = api.obs.download_object("talk", sid, oid, message_id=message_id)
                 if sealed:
                     stage = "image_decrypt"
@@ -153,7 +159,7 @@ def fetch_images(service, chat, message_ids):
                 "non_read_rpc_denied", "destination_denied", "object_path_denied", "redirect_denied",
                 "image_too_large", "unexpected_history", "invalid_reference", "media_material_missing",
                 "media_material_invalid", "unsupported_image_format", "image_size_invalid", "unsafe_output",
-                "output_limit_or_unsafe_entry", "output_quota_exceeded"
+                "output_limit_or_unsafe_entry", "output_quota_exceeded", "agent_paused"
             } else "image_recovery_failed"
             return {"ok": False, "stage": stage, "reason": reason,
                     "http_status": status if type(status) is int and 100 <= status <= 599 else None,
