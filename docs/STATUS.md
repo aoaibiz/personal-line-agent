@@ -1,6 +1,10 @@
 # Verification status — 2026-10-25
 
-Current source: **0.4.1 / executable lookup security fix**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+Current source: **0.4.2 / bounded received image retrieval**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+
+## 0.4.2 received image verification
+
+Ordinary group attachments: five actual images retrieved through MCP; one re-fetched and visually verified after final activation. Existing connection, E2EE, store integrity and receiver listening checked. Local final source suite: 335 passed / 13 skipped. Three independent scoped reviews completed, findings fixed. See [received images](RECEIVED-IMAGES.md) and [security review](SECURITY-REVIEW-20261029.md). Windows real-account use of this new image tool remains unverified. Album original retrieval is not supported in this release.
 
 ## 0.4.1 security verification
 

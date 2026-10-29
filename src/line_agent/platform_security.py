@@ -64,6 +64,7 @@ def _windows_descriptor():
     # Bind our new private objects to the actual user, as strict reads require.
     descriptor.SetSecurityDescriptorOwner(user, False)
     descriptor.SetSecurityDescriptorDacl(1, acl, 0)
+    descriptor.SetSecurityDescriptorControl(win32security.SE_DACL_PROTECTED, win32security.SE_DACL_PROTECTED)
     return descriptor
 
 

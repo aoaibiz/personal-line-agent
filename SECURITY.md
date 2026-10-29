@@ -15,7 +15,7 @@ Use this repository's **Security → Report a vulnerability** for private report
 
 ## Storage and disclosure
 
-Account records and staged media use encrypted local storage. OS keychain access protects the encryption key. Back up both data and the required recovery material through an owner-controlled process; key migration is not provided by this source preview.
+Account records and staged outbound media use encrypted local storage. Downloaded received images are plaintext files in an account-private directory (0700, files 0600); they are not encrypted by the record store. Keep this directory out of repositories and shared folders. OS keychain access protects the encryption key. Back up both data and the required recovery material through an owner-controlled process; key migration is not provided by this source preview.
 
 The tools intentionally return private data to the owner's selected AI host when requested. Encryption at rest does not prevent that host/provider from receiving tool results. The optional background Codex integration separately requires recorded consent for the configured source. Do not connect an untrusted AI host.
 
