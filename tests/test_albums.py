@@ -1,4 +1,5 @@
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -156,8 +157,27 @@ def test_success_save_and_later_failure_preserves_partial_result(service):
     assert result['ok'] is False
     assert len(result['items']) == 1
     path = Path(result['items'][0]['path'])
-    assert path.stat().st_mode & 0o777 == 0o600
-    assert path.parent.stat().st_mode & 0o777 == 0o700
+    if os.name == "nt":
+        import win32api
+        import win32security
+        token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), win32security.TOKEN_QUERY)
+        user = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        allowed = [user, win32security.CreateWellKnownSid(win32security.WinLocalSystemSid, None),
+                   win32security.CreateWellKnownSid(win32security.WinBuiltinAdministratorsSid, None)]
+        for path in (path, path.parent):
+            sd = win32security.GetFileSecurity(str(path), win32security.DACL_SECURITY_INFORMATION |
+                                               win32security.OWNER_SECURITY_INFORMATION)
+            assert sd.GetSecurityDescriptorOwner() == user
+            assert sd.GetSecurityDescriptorControl()[0] & win32security.SE_DACL_PROTECTED
+            acl = sd.GetSecurityDescriptorDacl()
+            assert acl is not None and acl.GetAceCount() > 0
+            for index in range(acl.GetAceCount()):
+                ace = acl.GetAce(index)
+                assert ace[0][0] == win32security.ACCESS_ALLOWED_ACE_TYPE
+                assert any(ace[2] == principal for principal in allowed)
+    else:
+        assert path.stat().st_mode & 0o777 == 0o600
+        assert path.parent.stat().st_mode & 0o777 == 0o700
     assert path.read_bytes() == b'\xff\xd8\xffsynthetic'
     assert result['items'][0]['visual_verified'] is False
     assert first.closed and second.closed
