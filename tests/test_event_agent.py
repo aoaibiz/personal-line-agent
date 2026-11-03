@@ -309,3 +309,110 @@ def test_policy_stop_serializes_with_already_started_send(service):
     assert revoked.is_set() and len(sent) == 1
     assert service.store.get("event_policy", GROUP)["enabled"] is False
     process(service, Model(), lambda *args: pytest.fail("must not send again"))
+
+
+HOST = "00000000-0000-4000-8000-000000000001"
+
+
+def test_host_queue_routes_once_without_model_or_line_send(service):
+    msg = setup(service, replies=False)
+    configure(service.store, GROUP, instructions="架空の試験", host_thread=HOST)
+    policy = service.store.get("event_policy", GROUP)
+    policy["enabled_at"] -= 1
+    service.store.put("event_policy", GROUP, policy, scope=GROUP)
+    receive(service, msg)
+    calls = []
+
+    def notify(thread, message, chat):
+        calls.append((thread, message, chat))
+        return {"queue_id": HOST}
+
+    model = Model()
+
+    def forbidden(*a):
+        raise AssertionError("LINE must not send")
+
+    process(service, model, forbidden, notify=notify)
+    receive(service, msg, 2)
+    process(service, model, forbidden, notify=notify)
+    assert calls == [(HOST, "100", GROUP)]
+    assert not model.calls
+    assert status(service.store, GROUP)["host_chat_push"] is True
+    assert status(service.store, GROUP)["items"][0]["state"] == "host_queued"
+
+
+def test_host_queue_unknown_does_not_retry(service):
+    msg = setup(service, replies=False)
+    configure(service.store, GROUP, instructions="架空の試験", host_thread=HOST)
+    policy = service.store.get("event_policy", GROUP)
+    policy["enabled_at"] -= 1
+    service.store.put("event_policy", GROUP, policy, scope=GROUP)
+    receive(service, msg)
+    calls = []
+
+    def unknown(*args):
+        calls.append(args)
+        raise TimeoutError()
+
+    process(service, Model(), None, notify=unknown)
+    process(service, Model(), None, notify=unknown)
+    assert len(calls) == 1
+    assert status(service.store, GROUP)["items"][0]["next_check"] == "host_thread_history"
+
+
+@pytest.mark.parametrize("target,replies", [("bad", False), (HOST, True)])
+def test_host_target_is_privileged_and_exclusive(service, target, replies):
+    setup(service)
+    with pytest.raises(ValueError, match="event_agent_invalid_host_target"):
+        configure(
+            service.store, GROUP, instructions="架空", host_thread=target, allow_replies=replies
+        )
+
+
+def test_official_queue_uses_fixed_argv_without_body(monkeypatch):
+    import subprocess
+
+    from line_agent.event_agent import queue_host_notification
+
+    seen = []
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/codex")
+
+    def run(args, **kwargs):
+        seen.append(args)
+        return subprocess.CompletedProcess(
+            args, 0, f"Queued message {HOST} for thread {HOST}.\n", ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    assert queue_host_notification(HOST, "123", GROUP)["queue_id"] == HOST
+    assert seen[0][:5] == ["/usr/bin/codex", "queue", "--thread", HOST, "--message"]
+    assert "message_id=123" in seen[0][5]
+    assert f"chat={GROUP}" in seen[0][5]
+
+
+@pytest.mark.parametrize("reason", ["age", "budget"])
+def test_host_queue_respects_age_and_budget(service, reason):
+    msg = setup(service, replies=False)
+    configure(service.store, GROUP, instructions="架空の試験", host_thread=HOST, max_daily=1)
+    policy = service.store.get("event_policy", GROUP)
+    policy["enabled_at"] -= 1
+    service.store.put("event_policy", GROUP, policy, scope=GROUP)
+    receive(service, msg)
+    if reason == "age":
+        row = service.store.records("event_job")[0]
+        job = row["value"]
+        job["received_at"] -= 601
+        service.store.put("event_job", row["id"], job, scope=GROUP)
+    else:
+        key = f"host:{GROUP}:{time.strftime('%Y-%m-%d', time.gmtime())}"
+        service.store.put("event_budget", key, {"count": 1})
+
+    def forbidden(*args):
+        raise AssertionError("notification must be limited")
+
+    process(service, Model(), None, notify=forbidden)
+    item = status(service.store, GROUP)["items"][0]
+    assert item["state"] == "owner_required"
+    assert item["reason"] == (
+        "event_agent_stale_incoming" if reason == "age" else "event_agent_daily_limit"
+    )
