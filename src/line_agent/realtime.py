@@ -108,6 +108,8 @@ def event_messages(service, event):
                         "updated_at": now, "pending": True, "action_id": action_id})
                     tx.put("classification_job", chat, {"chat": chat, "state": "pending",
                         "latest_message_id": message_id, "updated_at": now}, scope=chat)
+                    from .event_agent import enqueue
+                    enqueue(tx, chat, msg, now)
                     received += 1
             cursor = rev
         tx.put("setting", "event_cursor", {**saved, "revision": cursor, "saved_at": now})

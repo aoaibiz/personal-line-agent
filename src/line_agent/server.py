@@ -170,6 +170,13 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
                              "form_protocol_supported": supported(ctx),
                              "host_presentation": "unknown"}}
 
+    @server.tool(annotations=read)
+    @boundary
+    def event_agent_status(chat: str) -> dict[str, Any]:
+        """所有者が設定した対象グループの即時AI処理・引継ぎ状態。現チャットへのpushとは別。"""
+        from .event_agent import status
+        return status(service.store, chat)
+
     @server.tool(annotations=local)
     @boundary
     def connection_check() -> dict[str, Any]:
