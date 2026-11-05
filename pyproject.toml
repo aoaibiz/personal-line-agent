@@ -46,6 +46,7 @@ packages = ["src/line_agent"]
 "adapters/linejs/LICENSE.linejs.txt" = "line_agent/linejs/LICENSE.linejs.txt"
 
 [tool.hatch.build.targets.sdist]
+exclude = ["**/node_modules/**", "**/__pycache__/**", ".venv/**", ".monitor/**"]
 include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "docs/upgrade-20261105/*.md", "docs/upgrade-20261105/*.txt", "THIRD_PARTY_NOTICES.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock", "adapters/linejs/*.mjs", "adapters/linejs/package*.json", "adapters/linejs/LICENSE.linejs.txt"]
 
 [tool.hatch.metadata]
