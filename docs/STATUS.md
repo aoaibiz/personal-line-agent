@@ -1,6 +1,14 @@
+# 2026-11-06 runtime update
+
+0.6.0 core capability upgrade is active: actual album originals and the formerly failing historical video retrieved through the stable MCP; Note endpoint corrected and authoritative empty result verified. 46tools/27typed operations,408tests passed/13skipped,3Node tests. Existing connection and receiver preserved; broader optional families remain tracked in the coverage matrix. See [verification](upgrade-20261105/VERIFICATION.md).
+
+# Current upgrade: 0.6.0 — 2026-11-05
+
+Album originals were retrieved through the formal MCP path after deployment. See [verification and limitations](upgrade-20261105/VERIFICATION.md), [coverage](upgrade-20261105/COVERAGE.md) and [investigation](upgrade-20261105/INVESTIGATION.md). Historical release evidence follows and does not imply verification of new features.
+
 # Verification status — 2026-10-25
 
-Current source: **0.4.2 / bounded received image retrieval**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+Current source: **0.4.2 / bounded received image retrieval**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal work is not required, including installation, configuration and authentication; internal commands are performed by the owner agent, while owner QR/PIN confirmation uses a screen. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
 
 ## 0.4.2 received image verification
 

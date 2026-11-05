@@ -30,6 +30,27 @@ class SendText(Strict):
     in_reply_to: Annotated[str, Field(min_length=1, max_length=128)] | None = None
 
 
+class SendSticker(Strict):
+    to: Mid
+    package_id: Annotated[str, Field(pattern=r"^[0-9]{1,30}$")]
+    sticker_id: Annotated[str, Field(pattern=r"^[0-9]{1,30}$")]
+    version: Annotated[int, Field(ge=1, le=10000)] = 1
+
+
+class SendLocation(Strict):
+    to: Mid
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+    title: Annotated[str, Field(max_length=100)] = ""
+    address: Annotated[str, Field(max_length=1000)] = ""
+
+
+class SendContact(Strict):
+    to: Mid
+    contact_mid: Mid
+    display_name: Annotated[str, Field(max_length=100)] = ""
+
+
 class Mention(Strict):
     mid: Mid
     start: Annotated[int, Field(ge=0)]
@@ -72,7 +93,83 @@ class AddFriend(Strict):
     mid: Mid
 
 
+MessageId = Annotated[str, Field(pattern=r"^[0-9]{1,30}$")]
+
+
+class MessageAction(Strict):
+    to: Mid
+    message_id: MessageId
+
+
+class ReactMessage(MessageAction):
+    reaction: Literal[2, 3, 4, 5, 6, 7]
+
+
+class ContactToggle(Strict):
+    mid: Mid
+    enabled: bool
+
+
+class ContactTarget(Strict):
+    mid: Mid
+
+
+class LeaveGroup(Strict):
+    group: Mid
+
+
+class SetProfileName(Strict):
+    mid: Mid
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class SetProfileStatus(Strict):
+    mid: Mid
+    text: Annotated[str, Field(max_length=500)]
+
+
+class NoteCreate(Strict):
+    group: Mid
+    text: Text
+
+
+class NoteTarget(Strict):
+    group: Mid
+    post_id: MessageId
+
+
+class NoteUpdate(NoteTarget):
+    text: Text
+
+
+PROFILE_ACTIONS = {"set_profile_name", "set_profile_status"}
+
+
+MESSAGE_ACTIONS = {"react_message", "cancel_reaction", "mark_read", "unsend_message"}
+CONTACT_ACTIONS = {"mute_contact", "favorite_contact", "hide_contact", "block_contact", "unblock_contact"}
+GROUP_ACTIONS = {"kick_members", "leave_group", "note_create", "note_update", "note_delete"}
+
+
 ACTION_MODELS = {
+    "note_create": NoteCreate,
+    "note_update": NoteUpdate,
+    "note_delete": NoteTarget,
+    "set_profile_name": SetProfileName,
+    "set_profile_status": SetProfileStatus,
+    "send_sticker": SendSticker,
+    "send_location": SendLocation,
+    "send_contact": SendContact,
+    "react_message": ReactMessage,
+    "cancel_reaction": MessageAction,
+    "mark_read": MessageAction,
+    "unsend_message": MessageAction,
+    "mute_contact": ContactToggle,
+    "favorite_contact": ContactToggle,
+    "hide_contact": ContactToggle,
+    "block_contact": ContactTarget,
+    "unblock_contact": ContactTarget,
+    "kick_members": Invite,
+    "leave_group": LeaveGroup,
     "send_text": SendText,
     "send_mention": SendMention,
     "rename_contact": RenameContact,
@@ -94,12 +191,52 @@ def validate_mid(value):
     return TypeAdapter(Mid).validate_python(value)
 
 
-def action_context(kind, payload, recent_messages, contacts, group):
+def action_context(kind, payload, recent_messages, contacts, group, profile=None, note=None):
     def group_context(mid):
         row = group(mid)
-        return {"group": digest(row), "group_members": sorted(row.get("members", [])),
-                "group_invitees": sorted(row.get("invitees", []))}
+        return {
+            "group": digest(row),
+            "group_members": sorted(row.get("members", [])),
+            "group_invitees": sorted(row.get("invitees", [])),
+        }
 
+    if kind in PROFILE_ACTIONS:
+        if profile is None:
+            raise ValueError("profile_read_unavailable")
+        current = profile()
+        if current.get("mid") != payload["mid"]:
+            raise ValueError("profile_owner_mismatch")
+        return {"profile": digest(current)}
+    if kind in MESSAGE_ACTIONS:
+        matches = [
+            m
+            for m in recent_messages(payload["to"], 100)
+            if str(m.get("id")) == payload["message_id"]
+        ]
+        if len(matches) != 1:
+            raise ValueError("message_not_in_recent_page")
+        message = matches[0]
+        # Direct chat incoming messages are addressed to the owner; outgoing to the peer.
+        if payload["to"] not in (message.get("to"), message.get("from")):
+            raise ValueError("message_chat_mismatch")
+        context = {"message": digest(message), "message_sender": message.get("from")}
+        if is_group(payload["to"]):
+            if message.get("to") != payload["to"]:
+                raise ValueError("message_chat_mismatch")
+            context.update(group_context(payload["to"]))
+        return context
+    if kind in CONTACT_ACTIONS:
+        rows = contacts([payload["mid"]])
+        if len(rows) != 1:
+            raise ValueError("contact_unavailable")
+        return {"previous_name": rows[0].get("displayNameOverridden", "")}
+    if kind in GROUP_ACTIONS:
+        context = group_context(payload["group"])
+        if kind in {"note_update", "note_delete"}:
+            if note is None:
+                raise ValueError("note_read_unavailable")
+            context["note"] = digest(note(payload["group"], payload["post_id"]))
+        return context
     if kind.startswith("send_"):
         context = {"conversation": digest(recent_messages(payload["to"], 20))}
         if is_group(payload["to"]):
@@ -427,7 +564,13 @@ class AgentService:
 
     def _context(self, kind, payload):
         return action_context(
-            kind, payload, self.line.recent_messages, self.line.contacts, self.line.group
+            kind,
+            payload,
+            self.line.recent_messages,
+            self.line.contacts,
+            self.line.group,
+            getattr(self.line, "public_profile", None),
+            getattr(self.line, "note_snapshot", None),
         )
 
     def prepare(self, kind, payload):
@@ -473,19 +616,38 @@ class AgentService:
         for field in ("members",):
             if field in payload and len(payload[field]) != len(set(payload[field])):
                 raise ValueError("対象者が重複しています")
-        if kind in ("create_group", "invite") and any(
+        if kind in ("create_group", "invite", "kick_members") and any(
             not is_user(mid) for mid in payload["members"]
         ):
             raise ValueError("参加者にはユーザーIDを指定してください")
-        if kind in ("invite", "rename_group") and not is_group(payload["group"]):
+        if kind in ({"invite", "rename_group"} | GROUP_ACTIONS) and not is_group(payload["group"]):
             raise ValueError("通常グループIDを指定してください")
-        if kind in ("rename_contact", "add_friend") and not is_user(payload["mid"]):
+        if kind in {"rename_contact", "add_friend"} | CONTACT_ACTIONS and not is_user(
+            payload["mid"]
+        ):
             raise ValueError("ユーザーIDを指定してください")
+        if kind == "send_contact" and not is_user(payload["contact_mid"]):
+            raise ValueError("contact_card_requires_user")
+        if kind in PROFILE_ACTIONS and payload["mid"] != (
+            self.store.get("setting", "identity") or {}
+        ).get("mid"):
+            raise ValueError("profile_owner_mismatch")
+        context = self._context(kind, payload)
+        if kind == "unsend_message":
+            owner = (self.store.get("setting", "identity") or {}).get("mid")
+            if not owner or context.get("message_sender") != owner:
+                raise ValueError("only_owner_message_can_be_unsent")
+        if kind == "kick_members":
+            owner = (self.store.get("setting", "identity") or {}).get("mid")
+            if owner in payload["members"] or not set(payload["members"]) <= set(
+                context["group_members"]
+            ):
+                raise ValueError("invalid_kick_targets")
         action = {
             "id": str(uuid.uuid4()),
             "kind": kind,
             "payload": payload,
-            "context": self._context(kind, payload),
+            "context": context,
             "state": "prepared",
             "created_at": time.time(),
             "expires_at": time.time() + 600,
@@ -513,8 +675,9 @@ class AgentService:
             action = self.prepare(kind, payload)
             # A crash before this link is saved leaves an unsent orphan only.
             # External writes are impossible until the caller receives this action.
-            self.store.put("operation_request", request_id,
-                           {"intent": intent, "action_id": action["id"]})
+            self.store.put(
+                "operation_request", request_id, {"intent": intent, "action_id": action["id"]}
+            )
             return action
 
     def prepare_undo_rename(self, action_id):
@@ -547,34 +710,48 @@ class AgentService:
 
     def approval_binding(self, action):
         """Bind host confirmation to one immutable operation and one account."""
-        return digest({
-            "account": str(self.store.path),
-            "owner": (self.store.get("setting", "identity") or {}).get("mid"),
-            "action": {key: action[key] for key in (
-                "id", "kind", "payload", "context", "created_at", "expires_at"
-            )},
-        })
+        return digest(
+            {
+                "account": str(self.store.path),
+                "owner": (self.store.get("setting", "identity") or {}).get("mid"),
+                "action": {
+                    key: action[key]
+                    for key in ("id", "kind", "payload", "context", "created_at", "expires_at")
+                },
+            }
+        )
 
     def approve_from_client(self, action_id, expected_binding):
         """Internal only: invoked after the MCP host's elicitation response, never a tool."""
-        return self._approve_bound(action_id, expected_binding, "mcp_host_confirmation", "authorized")
+        return self._approve_bound(
+            action_id, expected_binding, "mcp_host_confirmation", "authorized"
+        )
 
     def approve_from_native(self, action_id, expected_binding):
         """Internal only: after a real human clicks the package's native dialog."""
         # Old server processes must reject this new state rather than execute without
         # the native binding checks introduced with it.
-        return self._approve_bound(action_id, expected_binding, "local_owner_native", "native_authorized")
+        return self._approve_bound(
+            action_id, expected_binding, "local_owner_native", "native_authorized"
+        )
 
     def _approve_bound(self, action_id, expected_binding, authority, state):
         with self.store.atomic() as tx:
             action = tx.get("action", action_id)
-            if (not action or action["state"] != "prepared"
-                    or action["expires_at"] <= time.time()
-                    or (tx.get("setting", "runtime") or {}).get("paused")
-                    or self.approval_binding(action) != expected_binding):
+            if (
+                not action
+                or action["state"] != "prepared"
+                or action["expires_at"] <= time.time()
+                or (tx.get("setting", "runtime") or {}).get("paused")
+                or self.approval_binding(action) != expected_binding
+            ):
                 raise ValueError("承認対象・アカウント・期限または状態が変わりました")
-            action.update(state=state, authorized_at=time.time(),
-                          authority=authority, approval_binding=expected_binding)
+            action.update(
+                state=state,
+                authorized_at=time.time(),
+                authority=authority,
+                approval_binding=expected_binding,
+            )
             tx.put("action", action_id, action)
         return action
 
@@ -652,6 +829,7 @@ class AgentService:
         binding = self.approval_binding(action)
         if delegation_principal is not None:
             from .delegation import for_action
+
             grant_id = for_action(self, action, delegation_principal)
         if (
             self.paused()
@@ -669,6 +847,7 @@ class AgentService:
                 raise ValueError("停止または期限切れです")
             if delegation_principal is not None:
                 from .delegation import claim
+
                 claim(self, action, delegation_principal, grant_id, binding, fresh_context)
                 started = True
                 return
@@ -685,9 +864,13 @@ class AgentService:
             ) and not self._policy_authorize(current):
                 raise ValueError("本人の承認または事前許可が必要です")
             if not self.store.transition(
-                "action", action_id,
-                "native_authorized" if current.get("authority") == "local_owner_native" else "authorized",
-                "sending", started_at=time.time()
+                "action",
+                action_id,
+                "native_authorized"
+                if current.get("authority") == "local_owner_native"
+                else "authorized",
+                "sending",
+                started_at=time.time(),
             ):
                 raise ValueError("別の処理が実行しています")
             started = True
@@ -696,8 +879,10 @@ class AgentService:
             result = self.line.execute(action["kind"], action["payload"], preflight=preflight)
         except Exception as error:
             from .diagnostics import DiagnosticError, diagnostic_error
+
             if not started:
                 from .delegation import DelegationDenied
+
                 if isinstance(error, DelegationDenied):
                     raise
                 if isinstance(error, DiagnosticError):
@@ -706,14 +891,25 @@ class AgentService:
                     "実行開始前に停止しました。接続・承認・有効期限を確認してください"
                 ) from None
             safe = diagnostic_error("operation", error)
-            return self.store.transition("action", action_id, "sending", "unknown",
-                error="external_result_unknown", diagnostic={"stage": safe.stage,
-                    "reason": safe.reason, "line_code": safe.line_code, "http_status": safe.http_status})
+            return self.store.transition(
+                "action",
+                action_id,
+                "sending",
+                "unknown",
+                error="external_result_unknown",
+                diagnostic={
+                    "stage": safe.stage,
+                    "reason": safe.reason,
+                    "line_code": safe.line_code,
+                    "http_status": safe.http_status,
+                },
+            )
         final = self.store.transition(
             "action", action_id, "sending", "sent", result=result, finished_at=time.time()
         )
         if final and grant_id:
             from .delegation import remember_group
+
             remember_group(self, final)
         return final
 
@@ -725,13 +921,18 @@ class AgentService:
             assistance_jobs[state] = assistance_jobs.get(state, 0) + 1
         return {
             "paused": self.paused(),
-            "pending": sum(a["state"] in ("prepared", "authorized", "native_authorized")
-                           and a["expires_at"] > time.time() for a in actions),
+            "pending": sum(
+                a["state"] in ("prepared", "authorized", "native_authorized")
+                and a["expires_at"] > time.time()
+                for a in actions
+            ),
             "uncertain": [a["id"] for a in actions if a["state"] in ("sending", "unknown")],
             "receiver": self.store.get("setting", "receiver"),
             "supervisor": self.store.get("setting", "receiver_supervisor"),
             "connected": self.store.get("setting", "identity") is not None,
             "e2ee": self.store.get("setting", "e2ee_health"),
-            "assistance": {"runtime": self.store.get("setting", "assistance_runtime"),
-                           "jobs": assistance_jobs},
+            "assistance": {
+                "runtime": self.store.get("setting", "assistance_runtime"),
+                "jobs": assistance_jobs,
+            },
         }

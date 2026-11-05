@@ -28,6 +28,7 @@ class LineAdapter:
         node = find_executable(os.environ.get("LINE_NODE") or "node")
         if node is None:
             from .diagnostics import DiagnosticError
+
             raise DiagnosticError("sdk_init", "dependency_missing")
         data = session or {}
         api = OkLine(
@@ -58,6 +59,7 @@ class LineAdapter:
 
         api.next_req_seq = next_sequence
         from .group_encryption import install
+
         install(api)
         return api
 
@@ -71,8 +73,12 @@ class LineAdapter:
             health(self.store, "error", reason=failure.reason)
             raise failure
         keys = (session.get("e2ee") or {}).get("keys") or {}
-        health(self.store, "ready" if keys else "missing", count=len(keys),
-               reason=None if keys else "e2ee_keys_missing")
+        health(
+            self.store,
+            "ready" if keys else "missing",
+            count=len(keys),
+            reason=None if keys else "e2ee_keys_missing",
+        )
 
     def login(self, on_qr, on_pin, *, repair_e2ee=False, confirmation_gate=None):
         """Owner-only login, with safe stages and a durable authenticated checkpoint."""
@@ -95,8 +101,13 @@ class LineAdapter:
             stage, api = "login_state", None
             session, previous = None, None
             trace_id = uuid4().hex[:16]
-            trace = {"operation_id": trace_id, "started_at": time.time(), "state": "starting",
-                     "repair_e2ee": repair_e2ee, "events": []}
+            trace = {
+                "operation_id": trace_id,
+                "started_at": time.time(),
+                "state": "starting",
+                "repair_e2ee": repair_e2ee,
+                "events": [],
+            }
 
             def record_trace(**fields):
                 trace.update(fields)
@@ -128,7 +139,9 @@ class LineAdapter:
                     if phase:
                         stage = phase
                     if confirmation_gate and not issuing_started:
-                        confirmation_gate(wait=phase in {"qr_certificate", "qr_pin_create", "qr_issue"})
+                        confirmation_gate(
+                            wait=phase in {"qr_certificate", "qr_pin_create", "qr_issue"}
+                        )
                     if phase == "qr_issue":
                         # Once issuance starts, finish the authenticated checkpoint
                         # even if the host disconnects; never discard rotated tokens.
@@ -139,17 +152,28 @@ class LineAdapter:
                         value = original_call(endpoint, *args, **kwargs)
                     except Exception as error:
                         safe = diagnostic_error(stage, error)
-                        trace["events"].append({"stage": stage, "outcome": "error",
-                            "kind": transport_kind(error), "http_status": safe.http_status,
-                            "line_code": safe.line_code,
-                            "elapsed_seconds": round(time.monotonic()-began, 3)})
+                        trace["events"].append(
+                            {
+                                "stage": stage,
+                                "outcome": "error",
+                                "kind": transport_kind(error),
+                                "http_status": safe.http_status,
+                                "line_code": safe.line_code,
+                                "elapsed_seconds": round(time.monotonic() - began, 3),
+                            }
+                        )
                         record_trace()
                         if confirmation_gate and not issuing_started:
                             confirmation_gate(wait=False)
                         # Preserve the SDK's certificate/PIN and polling fallback.
                         raise
-                    trace["events"].append({"stage": stage, "outcome": "ok",
-                        "elapsed_seconds": round(time.monotonic()-began, 3)})
+                    trace["events"].append(
+                        {
+                            "stage": stage,
+                            "outcome": "ok",
+                            "elapsed_seconds": round(time.monotonic() - began, 3),
+                        }
+                    )
                     record_trace()
                     if confirmation_gate and not issuing_started:
                         confirmation_gate(wait=False)
@@ -158,12 +182,14 @@ class LineAdapter:
                 api.transport.call = observe
                 original_send = getattr(api.transport, "_send", None)
                 if original_send:
+
                     def login_send(method, url, **kwargs):
                         if stage in {"qr_scan_wait", "qr_pin_wait"}:
                             timeout = login_poll_timeout(kwargs.get("headers"))
                             if timeout:
                                 kwargs["timeout"] = timeout
                         return original_send(method, url, **kwargs)
+
                     api.transport._send = login_send
                 if not session or repair_e2ee:
 
@@ -175,8 +201,11 @@ class LineAdapter:
 
                     stage = "qr_session_create"
                     if repair_e2ee:
-                        result = api.qr_login(on_qr=render, on_pin=on_pin,
-                            certificate=(session or {}).get("certificate"))
+                        result = api.qr_login(
+                            on_qr=render,
+                            on_pin=on_pin,
+                            certificate=(session or {}).get("certificate"),
+                        )
                     else:
                         result = api.qr_login(on_qr=render, on_pin=on_pin)
                     if confirmation_gate and not issuing_started:
@@ -188,9 +217,11 @@ class LineAdapter:
                     if repair_e2ee and not api.e2ee.is_ready():
                         from .e2ee_state import health
 
-                        reason = ("e2ee_login_unwrap_failed" if
-                            getattr(getattr(api, "auth", None), "last_e2ee_login", None)
-                            else "e2ee_login_metadata_missing")
+                        reason = (
+                            "e2ee_login_unwrap_failed"
+                            if getattr(getattr(api, "auth", None), "last_e2ee_login", None)
+                            else "e2ee_login_metadata_missing"
+                        )
                         # Preserve newly issued/rotated tokens even when E2EE failed.
                         # Any old key blobs remain encrypted in the same checkpoint.
                         try:
@@ -220,20 +251,37 @@ class LineAdapter:
                 self.store.put("setting", "identity", {"mid": mid, "verified_at": time.time()})
                 from .delegation import initialize_default
                 from .service import AgentService
+
                 initialize_default(AgentService(self.store, self))
-                record_trace(state="complete", stage="identity_save", finished_at=time.time(),
-                             e2ee_ready=api.e2ee.is_ready())
-                return {"connected": True, "resumed_saved_login": bool(session) and not repair_e2ee,
-                        "e2ee_ready": api.e2ee.is_ready(),
-                        "readiness": "encrypted_messages" if api.e2ee.is_ready() else "metadata_only"}
+                record_trace(
+                    state="complete",
+                    stage="identity_save",
+                    finished_at=time.time(),
+                    e2ee_ready=api.e2ee.is_ready(),
+                )
+                return {
+                    "connected": True,
+                    "resumed_saved_login": bool(session) and not repair_e2ee,
+                    "e2ee_ready": api.e2ee.is_ready(),
+                    "readiness": "encrypted_messages" if api.e2ee.is_ready() else "metadata_only",
+                }
             except Exception as error:
                 failure = diagnostic_error(stage, error)
                 if stage in {"qr_scan_wait", "qr_pin_wait"} and failure.http_status == 410:
-                    failure = DiagnosticError(stage, "authentication_phone_confirmation_timeout",
-                                              http_status=410, line_code=failure.line_code)
+                    failure = DiagnosticError(
+                        stage,
+                        "authentication_phone_confirmation_timeout",
+                        http_status=410,
+                        line_code=failure.line_code,
+                    )
                 failure.login_trace_id = trace_id
-                record_trace(state="error", stage=failure.stage, reason=failure.reason,
-                    failure_kind=transport_kind(error), finished_at=time.time())
+                record_trace(
+                    state="error",
+                    stage=failure.stage,
+                    reason=failure.reason,
+                    failure_kind=transport_kind(error),
+                    finished_at=time.time(),
+                )
                 # A successful refresh can rotate a single-use token before the retried
                 # profile request fails. Persist it without crossing the saved account.
                 if (
@@ -250,8 +298,12 @@ class LineAdapter:
                     except Exception as save_error:
                         save_failure = diagnostic_error("session_save", save_error)
                         save_failure.login_trace_id = trace_id
-                        record_trace(state="error", stage=save_failure.stage,
-                                     reason=save_failure.reason, finished_at=time.time())
+                        record_trace(
+                            state="error",
+                            stage=save_failure.stage,
+                            reason=save_failure.reason,
+                            finished_at=time.time(),
+                        )
                         raise save_failure from None
                 raise failure from None
             finally:
@@ -278,6 +330,7 @@ class LineAdapter:
             except Exception as error:
                 # No raw upstream exception, URL, or response body crosses the boundary.
                 from .diagnostics import diagnostic_error
+
                 raise diagnostic_error("operation", error) from None
             finally:
                 try:
@@ -298,6 +351,7 @@ class LineAdapter:
 
         def consume(api):
             nonlocal identity_rejected
+
             # SDK group decryption can otherwise create a missing E2EE group key.
             # Receive-only must never acquire external write authority from a message.
             def no_key_registration(*args, **kwargs):
@@ -313,8 +367,11 @@ class LineAdapter:
             saved = self.store.get("setting", "event_cursor")
             if not saved:
                 initial = revision(api.ops._ensure_local_rev())
-                saved = {"revision": initial, "initialized_at": time.time(),
-                    "coverage": "events_since_initial_seed"}
+                saved = {
+                    "revision": initial,
+                    "initialized_at": time.time(),
+                    "coverage": "events_since_initial_seed",
+                }
                 self.store.put("setting", "event_cursor", saved)
             api.ops.local_rev = revision(saved["revision"])
             deadline = time.monotonic() + seconds
@@ -389,8 +446,11 @@ class LineAdapter:
                         continue
                     seen.add(id(current))
                     timeout |= isinstance(current, (ReadTimeout, ReadTimeoutError))
-                    pending.extend(x for x in [current.__cause__, current.__context__,
-                        *current.args] if isinstance(x, BaseException))
+                    pending.extend(
+                        x
+                        for x in [current.__cause__, current.__context__, *current.args]
+                        if isinstance(x, BaseException)
+                    )
                 if not timeout:
                     raise
             finally:
@@ -461,13 +521,16 @@ class LineAdapter:
             failure = None
             if msg.get("chunks"):
                 originals = []
+
                 def deny_registration(*args, **kwargs):
                     raise RuntimeError("read_only_key_registration_blocked")
 
                 try:
                     # Decrypting a history read must not create group keys either.
-                    for target, name in ((getattr(api, "e2ee", None), "register_group_key"),
-                                         (api, "register_e2ee_group_key")):
+                    for target, name in (
+                        (getattr(api, "e2ee", None), "register_group_key"),
+                        (api, "register_e2ee_group_key"),
+                    ):
                         if target is not None and hasattr(target, name):
                             originals.append((target, name, getattr(target, name)))
                             setattr(target, name, deny_registration)
@@ -486,18 +549,18 @@ class LineAdapter:
                         setattr(target, name, original)
             # Neither encrypted chunks nor credential-like metadata are exposed to the LLM.
             clean = {
-                    key: msg[key]
-                    for key in (
-                        "id",
-                        "from",
-                        "to",
-                        "text",
-                        "contentType",
-                        "createdTime",
-                        "deliveredTime",
-                    )
-                    if key in msg
-                }
+                key: msg[key]
+                for key in (
+                    "id",
+                    "from",
+                    "to",
+                    "text",
+                    "contentType",
+                    "createdTime",
+                    "deliveredTime",
+                )
+                if key in msg
+            }
             if failure:
                 clean.pop("text", None)
                 clean["decryption_error"] = failure
@@ -612,6 +675,24 @@ class LineAdapter:
             "invitees": group.invitee_mids,
         }
 
+    @staticmethod
+    def _profile_view(raw):
+        if not isinstance(raw, dict) or not isinstance(raw.get("mid"), str):
+            raise ValueError("invalid_profile_response")
+        return {
+            key: raw[key]
+            for key in ("mid", "displayName", "statusMessage", "pictureStatus")
+            if key in raw
+        }
+
+    def public_profile(self):
+        return self.call(lambda api: self._profile_view(api.get_profile()))
+
+    def note_snapshot(self, chat, post_id):
+        from .line_content import note_snapshot
+
+        return self.call(lambda api: note_snapshot(api, self.store, chat, post_id))
+
     def execute(self, kind, payload, *, preflight):
         def perform(api):
             media_data = None
@@ -622,6 +703,15 @@ class LineAdapter:
                 if meta != payload["media"]:
                     raise ValueError("添付が変更されています")
             from .service import action_context
+
+            note_snapshots = {}
+
+            def read_note(chat, post_id):
+                from .line_content import note_snapshot
+
+                snapshot = note_snapshot(api, self.store, chat, post_id)
+                note_snapshots[post_id] = snapshot
+                return snapshot
 
             fresh_context = action_context(
                 kind,
@@ -638,21 +728,31 @@ class LineAdapter:
                 lambda mid: self._public_group(
                     api.get_chats([mid], with_members=True, with_invitees=True)["chats"][0]
                 ),
+                lambda: self._profile_view(api.get_profile()),
+                read_note,
             )
             preflight(fresh_context)
             if kind == "send_text":
                 from .identifiers import is_group
+
                 if is_group(payload["to"]):
                     # A fresh group can reject a plain send with 99, whereas
                     # the SDK's plain-send fallback only handles 82. Negotiate
                     # and seal before the first send, as the extension does.
                     from okline import Message
                     from okline.enums import MessageRelationType
-                    related = ({"related_message_id": payload["in_reply_to"],
-                                "message_relation_type": int(MessageRelationType.REPLY)}
-                               if payload.get("in_reply_to") else {})
-                    return api.send_message(Message.text(payload["to"], payload["text"], **related),
-                                            encrypt=True)
+
+                    related = (
+                        {
+                            "related_message_id": payload["in_reply_to"],
+                            "message_relation_type": int(MessageRelationType.REPLY),
+                        }
+                        if payload.get("in_reply_to")
+                        else {}
+                    )
+                    return api.send_message(
+                        Message.text(payload["to"], payload["text"], **related), encrypt=True
+                    )
                 if payload.get("in_reply_to"):
                     return api.reply_text(payload["to"], payload["text"], payload["in_reply_to"])
                 return api.send_text(payload["to"], payload["text"])
@@ -677,7 +777,64 @@ class LineAdapter:
                     },
                 )
                 from .identifiers import is_group
+
                 return api.send_message(message, encrypt=is_group(payload["to"]))
+            if kind in {"note_create", "note_update", "note_delete"}:
+                from .line_content import execute_note
+
+                return execute_note(
+                    api, self.store, kind, payload, note_snapshots.get(payload.get("post_id"))
+                )
+            if kind == "set_profile_name":
+                return api.set_display_name(payload["name"])
+            if kind == "set_profile_status":
+                return api.set_status_message(payload["text"])
+            if kind == "send_sticker":
+                return api.send_sticker(
+                    payload["to"], payload["package_id"], payload["sticker_id"], payload["version"]
+                )
+            if kind == "send_location":
+                from okline import Message
+
+                from .identifiers import is_group
+
+                return api.send_message(
+                    Message.location(
+                        payload["to"],
+                        payload["latitude"],
+                        payload["longitude"],
+                        title=payload["title"],
+                        address=payload["address"],
+                    ),
+                    encrypt=is_group(payload["to"]),
+                )
+            if kind == "send_contact":
+                return api.send_contact(
+                    payload["to"], payload["contact_mid"], payload["display_name"]
+                )
+            if kind == "react_message":
+                return api.react(payload["message_id"], payload["reaction"])
+            if kind == "cancel_reaction":
+                return api.cancel_reaction(payload["message_id"])
+            if kind == "mark_read":
+                return api.send_chat_checked(payload["to"], payload["message_id"])
+            if kind == "unsend_message":
+                return api.unsend_message(payload["message_id"])
+            if kind == "mute_contact":
+                from okline.enums import ContactSetting
+                return api.update_contact_setting(payload["mid"], int(ContactSetting.CONTACT_SETTING_NOTIFICATION_DISABLE), "true" if payload["enabled"] else "false")
+            if kind == "favorite_contact":
+                return api.set_favorite(payload["mid"], payload["enabled"])
+            if kind == "hide_contact":
+                return api.hide_contact(payload["mid"], payload["enabled"])
+            if kind == "block_contact":
+                return api.block_contact(payload["mid"])
+            if kind == "unblock_contact":
+                return api.unblock_contact(payload["mid"])
+            if kind == "kick_members":
+                return api.kick_from_chat(payload["group"], payload["members"])
+            if kind == "leave_group":
+                return api.leave_chat(payload["group"])
             if kind == "rename_contact":
                 return api.update_contact_setting(payload["mid"], 2, payload["name"])
             if kind == "create_group":
