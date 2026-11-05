@@ -70,3 +70,18 @@ Earlier failure records above are historical, not the current diagnosis.
 6. Deploy the reviewed immutable build and repeat through the user's stable interface. A local helper succeeding is not proof that the installed tool was upgraded.
 
 These steps apply to other integrations with opaque IDs, session-specific authority and stale SDKs; the exact LINE endpoints and chunk size are specific to this implementation.
+
+
+## 2026-11-06 additional-device recovery and API adoption
+
+Observed: saved DESKTOPMAC additional state began failing at `ready/getProfile` with LINE code8 (`NOT_AUTHORIZED_DEVICE`). A completed QR exchange was followed by the same failure in a fresh worker. One attempted token refresh did not recover that state; the code8 refresh fallback was removed because the pinned SDK refresh contract applies to MUST_REFRESH_V3_TOKEN, not arbitrary device rejection. There is no proven credential serialization defect.
+
+The owner then quit the native Mac LINE app, without logging out on the phone. A subsequent owner QR flow, fresh-process restore, album read and repeated OpenChat reads succeeded. This is evidence of recovery under that condition; competing desktop sessions are a hypothesis, not a proven LINE policy or a controlled causality result. Reopening native LINE concurrently has not been tested. The original Chrome receiver remained separate.
+
+The repair now checks saved-state reuse in a fresh worker before `additional_connection_start` reports connected. `additional_connection_check` verifies that separate lane without QR/relogin, writes or retrying sends. Safe diagnostics retain stage, closed error kind, numeric LINE/HTTP codes and time; raw errors/credentials never leave the private adapter. A device-rejected code8 reports that owner authentication is required instead of trying repeated token refreshes.
+
+OpenChat reference adoption: actual getJoinedSquares worked; the tested getJoinedSquareChats route did not. The pinned CLI itself derives chat entries from membership events, so the supported read tool labels those entries as event-derived and non-exhaustive. Details/members are read only for recent owner-bound references. Message history keeps syncToken and continuationToken separately behind a scoped opaque cursor; independent review caught the first implementation's loss of the page token, and contract tests now cover that case and malformed targeted event payloads. Actual empty event pages do not prove nonempty projection or complete history.
+
+VOOM/birthday: the pinned status/template implementations returned application code500. Two transport/routing compatibility attempts did not fix them. Those experimental routes/tools were removed from the runtime candidate rather than exposed as working. No social writes were attempted; account/device compatibility versus changed upstream contract remains unresolved. Do not perform a third identical routing retry or infer an outage from these responses.
+
+Reusable method: separate QR completion, persisted connection reuse, API contract success and content completeness. Test each boundary in that order. Compare request fields against the actual pinned response/request schemas; a cursor with a plausible name is not interchangeable with another cursor. Preserve negative evidence, and do not turn absent/malformed payloads into a successful empty page.

@@ -1,7 +1,9 @@
 /** Private stdio protocol; never forward output to MCP or logs. */
+import {enums} from '@evex-dev/linejs-types';
 import {Client} from '@evex-dev/linejs';
 import {BaseClient} from '@evex-dev/linejs/base';
 import {MemoryStorage} from '@evex-dev/linejs/storage';
+import {messageOptions,messagePage} from './openchat.mjs';
 import {noteUpdateBody} from './notes.mjs';
 import {ownsPublicKey, sharedMessageCount} from './identity.mjs';
 import {createInterface} from 'node:readline';
@@ -41,7 +43,7 @@ try {
   const {value:line}=await lines[Symbol.asyncIterator]().next(); lines.close();
   if(!line || line.length>6*1024*1024) throw Error('input_invalid');
   req=JSON.parse(line);
-  if(!['login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
+  if(!['login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
   storage=new MemoryStorage(req.state?.storage || {});
   const init={device:'DESKTOPMAC',endpoint:'legy-jp.line-apps.com',storage,fetch:fetchBounded};
   stage='authentication';
@@ -144,13 +146,34 @@ try {
     });
     if(!response.ok) throw Error('upstream_http_error');
     result=await response.json();
-  } else result={connected:true};
+  } else if(req.command==='squares'||req.command==='square_chats') {
+    if(typeof cursor!=='string'||cursor.length>2048) throw Error('input_invalid');
+    if(req.command==='squares') result=await client.base.square.getJoinedSquares({limit:100,...(cursor?{continuationToken:cursor}:{})});
+    else {
+      const page=await client.base.square.fetchMyEvents({limit:100,...(cursor?{continuationToken:cursor}:{})});
+      if(!Array.isArray(page.events)) throw Error('unexpected_schema');
+      result={squareChats:page.events.map(e=>e.payload?.notifiedCreateSquareChatMember?.chat).filter(Boolean),continuationToken:page.continuationToken,source:'membership_events'};
+    }
+  } else if(['square_get','square_chat_get','square_members','square_messages'].includes(req.command)) {
+    const prefix=req.command==='square_get'?'s':'m';
+    if(typeof req.target!=='string'||!new RegExp('^'+prefix+'[0-9a-f]{32}$').test(req.target)) throw Error('input_invalid');
+    if(req.command==='square_get') result=await client.base.square.getSquare({squareMid:req.target});
+    if(req.command==='square_chat_get') result=await client.base.square.getSquareChat({squareChatMid:req.target});
+    if(req.command==='square_members') result=await client.base.square.getSquareChatMembers({squareChatMid:req.target,limit:100,...(cursor?{continuationToken:cursor}:{})});
+    if(req.command==='square_messages') {
+      const page=await client.base.square.fetchSquareChatEvents(messageOptions(req.target,req.sync_token,req.continuation_token));
+      result=messagePage(page,req.target);
+    }
+  }
+  else result={connected:true};
   emit({event:'result',result,state:savedState()});
 } catch(e) {
-  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','input_invalid','response_too_large','destination_denied'];
+  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','input_invalid','response_too_large','destination_denied','unexpected_schema'];
   const network = ['ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENOTFOUND','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const timeout = e?.name==='TimeoutError' || e?.name==='AbortError' || ['ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
-  emit({event:'error',...(identityVerified?{state:savedState()}:{}),stage,reason:known.includes(e?.message)?e.message:timeout?'transport_timeout':network?'transport_failed':lastStatus>=400?'upstream_http_error':'upstream_failed'});
+  const errorKind=['RequestError','TalkException','NotAuthorized','TypeError','ReferenceError','TimeoutError'].includes(e?.name)?e.name:'Other';
+  const code=Number.isInteger(e?.data?.code)?e.data.code:Number.isInteger(e?.code)?e.code:stage==='authentication'&&Number.isInteger(enums.ErrorCode?.[e?.data?.code])?enums.ErrorCode[e.data.code]:null;
+  emit({event:'error',diagnostic:{error_kind:errorKind,line_code:code,http_status:lastStatus},...(identityVerified?{state:savedState()}:{}),stage,reason:known.includes(e?.message)?e.message:timeout?'transport_timeout':network?'transport_failed':lastStatus>=400?'upstream_http_error':'upstream_failed'});
 }
 await pendingOutput;
 process.exit(0);

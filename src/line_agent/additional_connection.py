@@ -45,8 +45,9 @@ function run() {
 
 
 class AdditionalFailure(Exception):
-    def __init__(self, stage, reason):
+    def __init__(self, stage, reason, diagnostic=None):
         self.stage, self.reason = stage, reason
+        self.diagnostic = diagnostic or {}
 
 
 def adapter_directory():
@@ -93,6 +94,12 @@ def invoke(store, command, owner, *, display=None, **params):
         "photo",
         "notes",
         "resolve_chat",
+        "squares",
+        "square_chats",
+        "square_get",
+        "square_chat_get",
+        "square_members",
+        "square_messages",
         "note_get",
         "note_create",
         "note_update",
@@ -216,6 +223,27 @@ def invoke(store, command, owner, *, display=None, **params):
                             else "adapter",
                             reason if reason in allowed else "upstream_failed",
                         )
+                        diagnostic = event.get("diagnostic") or {}
+                        failure.diagnostic = {
+                            "error_kind": diagnostic.get("error_kind")
+                            if diagnostic.get("error_kind")
+                            in {
+                                "RequestError",
+                                "TalkException",
+                                "NotAuthorized",
+                                "TypeError",
+                                "ReferenceError",
+                                "TimeoutError",
+                                "Other",
+                            }
+                            else "Other",
+                            "line_code": diagnostic.get("line_code")
+                            if type(diagnostic.get("line_code")) is int
+                            else None,
+                            "http_status": diagnostic.get("http_status")
+                            if type(diagnostic.get("http_status")) is int
+                            else None,
+                        }
                         if event.get("state") is None:
                             raise failure
                     if kind in ("result", "error"):
@@ -251,7 +279,30 @@ def invoke(store, command, owner, *, display=None, **params):
             if failure:
                 raise failure
             return result
+        except AdditionalFailure as error:
+            store.put(
+                "additional_diagnostic",
+                "last",
+                {
+                    "phase": error.stage,
+                    "reason": error.reason,
+                    "at": time.time(),
+                    "state": "failed",
+                    **error.diagnostic,
+                },
+            )
+            raise
         except (ValueError, TypeError, KeyError):
+            store.put(
+                "additional_diagnostic",
+                "last",
+                {
+                    "phase": "adapter",
+                    "reason": "invalid_adapter_response",
+                    "at": time.time(),
+                    "state": "failed",
+                },
+            )
             raise AdditionalFailure("adapter", "invalid_adapter_response") from None
         finally:
             selector.close()
@@ -300,13 +351,21 @@ def connect(service):
 
         owner, proof = service.line.call(identity_proof)
         result = invoke(service.store, "login", owner, display=show_auth, public_keys=proof)
+        if result.get("connected") is not True:
+            raise AdditionalFailure("authentication", "authentication_not_completed")
+        # A successful QR exchange is not yet proof of reusable saved state.
+        # Verify a fresh worker using only the saved connection before reporting.
+        restored = invoke(service.store, "check", owner)
+        if restored.get("connected") is not True:
+            raise AdditionalFailure("authentication", "saved_connection_unusable")
         return {
-            "ok": result.get("connected") is True,
+            "ok": True,
             "state": "connected",
+            "reconnect_verified": True,
             "existing_connection_replaced": False,
         }
     except AdditionalFailure as e:
-        return {"ok": False, "stage": e.stage, "reason": e.reason}
+        return {"ok": False, "stage": e.stage, "reason": e.reason, **e.diagnostic}
 
 
 def status(store):
@@ -315,6 +374,28 @@ def status(store):
         "configured": bool(state),
         "device": "DESKTOPMAC",
         "live_verified": False,
-        "scope": "album_and_note_reads",
+        "scope": "typed_additional_features",
+        "last_check": store.get("additional_diagnostic", "last"),
         "existing_connection_replaced": False,
     }
+
+
+def check(service):
+    """Verify saved additional state without QR, grant changes or write retries."""
+    owner = (service.store.get("setting", "identity") or {}).get("mid")
+    try:
+        result = invoke(service.store, "check", owner)
+        if result.get("connected") is not True:
+            raise AdditionalFailure("authentication", "saved_connection_unusable")
+        return {"ok": True, "live_verified": True, "existing_connection_replaced": False}
+    except AdditionalFailure as error:
+        return {
+            "ok": False,
+            "live_verified": False,
+            "stage": error.stage,
+            "reason": error.reason,
+            **error.diagnostic,
+            "owner_authentication_required": error.stage in {"authentication", "additional_authentication"}
+            and error.diagnostic.get("line_code") == 8,
+            "existing_connection_replaced": False,
+        }

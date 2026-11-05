@@ -300,7 +300,12 @@ class AdditionalContentClient(ContentClient):
         try:
             return invoke(self.store, command, self.owner, **params)
         except AdditionalFailure as e:
-            raise ContentFailure(e.stage, e.reason) from None
+            raise ContentFailure(
+                e.stage,
+                e.reason,
+                status=e.diagnostic.get("http_status"),
+                code=e.diagnostic.get("line_code"),
+            ) from None
 
     def json(self, path, params, *, channel, headers=None, method="GET"):
         if path == "/ext/album/moa/v2/albums":

@@ -1,3 +1,7 @@
+# 2026-11-06 additional-connection follow-up
+
+The additional desktop connection is restored and fresh-process reuse verified after owner QR authentication with the native Mac LINE app closed. The cause of prior LINE8 rejection is not proven; simultaneous native-app use is unverified. A live additional check and post-login reconnect verification now distinguish saved credentials from a working connection. Reviewed runtime `aa45d907…` is active, with49tools/27typed operations,416Python tests passed/13skipped and5Node tests passed. Album originals and OpenChat community/details reads passed through formal MCP after activation; original receiver listening and uncertain ledger3 preserved. See [verification](upgrade-20261105/VERIFICATION.md). Broader feature coverage remains explicitly incomplete.
+
 # 2026-11-06 runtime update
 
 0.6.0 core capability upgrade is active: actual album originals and the formerly failing historical video retrieved through the stable MCP; Note endpoint corrected and authoritative empty result verified. 46tools/27typed operations,408tests passed/13skipped,3Node tests. Existing connection and receiver preserved; broader optional families remain tracked in the coverage matrix. See [verification](upgrade-20261105/VERIFICATION.md).

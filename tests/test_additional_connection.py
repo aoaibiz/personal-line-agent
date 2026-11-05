@@ -124,3 +124,59 @@ def test_bad_exit_does_not_checkpoint_error_state(service, adapter):
     with pytest.raises(a.AdditionalFailure):
         a.invoke(service.store, "albums", OWNER)
     assert service.store.get("additional_connection", "linejs")["token"] == "synthetic-old"
+
+
+def test_authentication_error_diagnostics_are_closed_and_persisted(service, adapter):
+    service.store.put(
+        "additional_connection", "linejs", {"owner": OWNER, "token": "synthetic-old", "storage": {}}
+    )
+    script(
+        adapter,
+        "console.log(JSON.stringify({event:'error',stage:'authentication',reason:'upstream_failed',diagnostic:{error_kind:'RequestError',line_code:8,http_status:200,token:'never-output',raw:'never-output'}}));",
+    )
+    with pytest.raises(a.AdditionalFailure) as e:
+        a.invoke(service.store, "check", OWNER)
+    assert e.value.diagnostic == {"error_kind": "RequestError", "line_code": 8, "http_status": 200}
+    last = service.store.get("additional_diagnostic", "last")
+    assert last["state"] == "failed" and last["line_code"] == 8
+    assert "never-output" not in json.dumps(last)
+    assert service.store.get("additional_connection", "linejs")["token"] == "synthetic-old"
+
+
+def test_connect_requires_saved_state_reconnect(service, monkeypatch):
+    import base64
+
+    api = SimpleNamespace(
+        tokens=SimpleNamespace(mid=OWNER),
+        get_e2ee_public_keys_ex=lambda _: [
+            {"keyId": 1, "keyData": base64.b64encode(b"x" * 32).decode()}
+        ],
+    )
+    service.line.call = lambda f: f(api)
+    monkeypatch.setattr(a, "available", lambda: True)
+    calls = []
+
+    def invoke(store, command, owner, **params):
+        calls.append(command)
+        if command == "check":
+            raise a.AdditionalFailure(
+                "additional_authentication", "upstream_failed", {"line_code": 8}
+            )
+        return {"connected": True}
+
+    monkeypatch.setattr(a, "invoke", invoke)
+    result = a.connect(service)
+    assert calls == ["login", "check"] and not result["ok"] and result["line_code"] == 8
+    monkeypatch.setattr(a, "invoke", lambda *a, **k: {"connected": True})
+    assert a.connect(service)["reconnect_verified"] is True
+
+
+def test_live_check_reports_actual_prefixed_device_rejection(service, monkeypatch):
+    def fail(*args, **kwargs):
+        raise a.AdditionalFailure("additional_authentication", "upstream_failed", {"line_code": 8})
+
+    monkeypatch.setattr(a, "invoke", fail)
+    result = a.check(service)
+    assert not result["ok"] and not result["live_verified"]
+    assert result["owner_authentication_required"] is True
+    assert result["existing_connection_replaced"] is False

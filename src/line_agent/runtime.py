@@ -135,7 +135,7 @@ def stage(home, source):
     names += [str(p.relative_to(source)) for p in sorted((source / "src/line_agent").glob("*.py"))]
     has_additional = (source / "adapters/linejs/package.json").is_file()
     if has_additional:
-        names += ["adapters/linejs/"+n for n in ("package.json","package-lock.json","worker.mjs","identity.mjs","notes.mjs","LICENSE.linejs.txt")]
+        names += ["adapters/linejs/"+n for n in ("package.json","package-lock.json","worker.mjs","identity.mjs","notes.mjs","openchat.mjs","LICENSE.linejs.txt")]
     if len(names) < 10:
         raise RuntimeFailure("source_incomplete")
     files = {}
