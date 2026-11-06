@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from pydantic import Field
 
 from .identifiers import is_group, is_user
-from .service import ACTION_MODELS, Mid, Strict, digest
+from .service import ACTION_MODELS, SQUARE_ACTIONS, Mid, SquareChatId, Strict, digest
 
 
 class GroupRule(Strict):
@@ -20,6 +20,8 @@ class GroupRule(Strict):
 
 class Scope(Strict):
     targets: list[Mid] = Field(default_factory=list, max_length=5000)
+    square_targets: list[SquareChatId] = Field(default_factory=list, max_length=5000)
+    blocked_square_targets: list[SquareChatId] = Field(default_factory=list, max_length=5000)
     all_targets: bool = False
     kinds: list[str] = Field(min_length=1, max_length=100)
     hours: int | None = Field(ge=1, le=24 * 365)
@@ -83,7 +85,7 @@ def candidate(service, data):
     scope = Scope.model_validate(data).model_dump()
     owner = (service.store.get("setting", "identity") or {}).get("mid")
     if (
-        (not scope["all_targets"] and not scope["targets"])
+        (not scope["all_targets"] and not scope["targets"] and not scope["square_targets"])
         or len(set(scope["targets"])) != len(scope["targets"])
         or len(set(scope["kinds"])) != len(scope["kinds"])
         or any(
@@ -267,6 +269,8 @@ def enroll_native(service, data):
                 if scope["all_targets"]
                 else "上記の対象のみ"
             ),
+            "OpenChat対象：" + display_json(scope.get("square_targets", [])),
+            "OpenChat禁止対象：" + display_json(scope.get("blocked_square_targets", [])),
             "禁止対象：" + display_json(scope["blocked_targets"]),
             "禁止操作：" + "、".join(labels.get(k, k) for k in scope["blocked_kinds"]),
             "期限："
@@ -359,6 +363,11 @@ def check(service, grant, action, principal, group_record=None):
         raise DelegationDenied("delegation_kind_out_of_scope")
     if kind in scope.get("blocked_kinds", []):
         raise DelegationDenied("delegation_kind_blocked")
+    if kind in SQUARE_ACTIONS:
+        if payload["target"] not in scope.get("square_targets", []):
+            raise DelegationDenied("delegation_target_out_of_scope")
+        if payload["target"] in scope.get("blocked_square_targets", []):
+            raise DelegationDenied("delegation_target_blocked")
     allowed = set(scope["targets"])
     all_targets = scope.get("all_targets", False)
     blocked = set(scope.get("blocked_targets", []))

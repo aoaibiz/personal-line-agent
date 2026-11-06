@@ -55,3 +55,7 @@ The core failures are resolved and the installed tool verified. The separately l
 Owner approved IOSIPAD additional login. Fresh QR completed; same-owner public-key proof and a fresh saved-session check passed. Owner then logged into native Mac LINE; actual AX state showed conversation UI and no login controls. Additional saved-session check still passed, original connection_check returned connected/E2EE ready/receiver listening. Auth-only reviewed runtime `56ba0f022ad5d776d1da217139acbc5234b8ee29ebd63d2e6409621943ea29d3` activated and formal bridge additional_connection_check passed. This is observed coexistence, not a guarantee against future provider session revocation. No existing credentials/DB/ledger were rolled back.
 
 The controlled VOOM/birthday read probes also returned application code500 with IOSIPAD. Device change therefore did not resolve that separate service issue. No failed response was converted into empty success.
+
+### Square operation contract verification
+
+Read-only current-account preflight fetched the chat and community and verified the same joined Square member identity. No live Square write was sent. Synthetic tests cover foreign identities, stale snapshots, own-message provenance, separate explicit target grants, unknown-result non-replay and no goodbye. Independent review caught and corrected the SDK response field `createdSquareMessage` and signed i64 revision serialization; the pinned Thrift serializer was used to verify a large BigInt revision round-trip. These checks do not claim actual sent/leave server acceptance.

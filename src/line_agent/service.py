@@ -161,6 +161,39 @@ class NoteLike(NoteTarget):
     reaction: Literal["1001", "1002", "1003", "1004", "1005", "1006"] = "1003"
 
 
+SquareChatId = Annotated[str, Field(pattern=r"^m[0-9a-f]{32}$")]
+
+
+class SquareTarget(Strict):
+    target: SquareChatId
+
+
+class SquareText(SquareTarget):
+    text: Text
+    reply_to: MessageId | None = None
+
+
+class SquareMessage(SquareTarget):
+    message_id: MessageId
+
+
+class SquareReaction(SquareMessage):
+    reaction: Literal["UNDO", "NICE", "LOVE", "FUN", "AMAZING", "SAD", "OMG"]
+
+
+class SquareRename(SquareTarget):
+    name: Annotated[str, Field(min_length=1, max_length=50)]
+
+
+SQUARE_ACTIONS = {
+    "square_send_text": SquareText,
+    "square_react": SquareReaction,
+    "square_mark_read": SquareMessage,
+    "square_unsend": SquareMessage,
+    "square_rename_chat": SquareRename,
+    "square_leave_chat": SquareTarget,
+}
+
 PROFILE_ACTIONS = {"set_profile_name", "set_profile_status", "set_profile_image"}
 
 
@@ -187,6 +220,7 @@ GROUP_ACTIONS = {
 
 
 ACTION_MODELS = {
+    **SQUARE_ACTIONS,
     "set_profile_image": ProfileImage,
     "pin_message": PinMessage,
     "set_chat_bgm": ChatBgm,
@@ -233,7 +267,14 @@ def validate_mid(value):
     return TypeAdapter(Mid).validate_python(value)
 
 
-def action_context(kind, payload, recent_messages, contacts, group, profile=None, note=None):
+def action_context(
+    kind, payload, recent_messages, contacts, group, profile=None, note=None, square=None
+):
+    if kind in SQUARE_ACTIONS:
+        if square is None:
+            raise ValueError("square_read_unavailable")
+        return {"square": square(kind, payload)}
+
     def group_context(mid):
         row = group(mid)
         return {
@@ -627,6 +668,7 @@ class AgentService:
             self.line.group,
             getattr(self.line, "public_profile", None),
             getattr(self.line, "note_snapshot", None),
+            getattr(self.line, "square_snapshot", None),
         )
 
     def prepare(self, kind, payload):

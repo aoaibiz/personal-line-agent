@@ -39,6 +39,7 @@ packages = ["src/line_agent"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "adapters/linejs/worker.mjs" = "line_agent/linejs/worker.mjs"
+"adapters/linejs/square-actions.mjs" = "line_agent/linejs/square-actions.mjs"
 "adapters/linejs/openchat.mjs" = "line_agent/linejs/openchat.mjs"
 "adapters/linejs/notes.mjs" = "line_agent/linejs/notes.mjs"
 "adapters/linejs/identity.mjs" = "line_agent/linejs/identity.mjs"

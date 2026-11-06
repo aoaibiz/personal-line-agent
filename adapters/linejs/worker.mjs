@@ -3,6 +3,7 @@ import {enums} from '@evex-dev/linejs-types';
 import {Client} from '@evex-dev/linejs';
 import {BaseClient} from '@evex-dev/linejs/base';
 import {MemoryStorage} from '@evex-dev/linejs/storage';
+import {squareContext,executeSquare} from './square-actions.mjs';
 import {messageOptions,messagePage} from './openchat.mjs';
 import {noteUpdateBody} from './notes.mjs';
 import {ownsPublicKey, sharedMessageCount} from './identity.mjs';
@@ -44,7 +45,7 @@ try {
   const {value:line}=await lines[Symbol.asyncIterator]().next(); lines.close();
   if(!line || line.length>8*1024*1024) throw Error('input_invalid');
   req=JSON.parse(line);
-  if(!['profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
+  if(!['square_preflight','square_execute','profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
   activeDevice=req.command==='login'?(req.device??'DESKTOPMAC'):(req.state?.device??'DESKTOPMAC');
   if(!['DESKTOPMAC','IOSIPAD'].includes(activeDevice)) throw Error('input_invalid');
   const freshDevice=req.command==='login'&&(req.state?.device??'DESKTOPMAC')!==activeDevice;
@@ -169,6 +170,8 @@ try {
       result=messagePage(page,req.target);
     }
   }
+  else if(req.command==='square_preflight') result=await squareContext(client,req.kind,req.payload);
+  else if(req.command==='square_execute') result=await executeSquare(client,req.kind,req.payload,req.expected);
   else if(req.command==='profile_image') {
     if(typeof req.data!=='string'||req.data.length>7*1024*1024||!['image/png','image/jpeg'].includes(req.content_type)) throw Error('input_invalid');
     const bytes=Buffer.from(req.data,'base64');
@@ -208,7 +211,7 @@ try {
   else result={connected:true};
   emit({event:'result',result,state:savedState()});
 } catch(e) {
-  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','input_invalid','response_too_large','destination_denied','unexpected_schema'];
+  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','square_not_member','square_role_required','square_message_not_found','square_own_message_required','square_context_changed','input_invalid','response_too_large','destination_denied','unexpected_schema'];
   const network = ['ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENOTFOUND','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const timeout = e?.name==='TimeoutError' || e?.name==='AbortError' || ['ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const errorKind=['RequestError','TalkException','NotAuthorized','TypeError','ReferenceError','TimeoutError'].includes(e?.name)?e.name:'Other';

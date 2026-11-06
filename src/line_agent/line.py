@@ -693,6 +693,12 @@ class LineAdapter:
 
         return self.call(lambda api: note_snapshot(api, self.store, chat, post_id))
 
+    def square_snapshot(self, kind, payload):
+        from .additional_connection import invoke
+
+        owner = (self.store.get("setting", "identity") or {}).get("mid")
+        return invoke(self.store, "square_preflight", owner, kind=kind, payload=payload)
+
     def execute(self, kind, payload, *, preflight):
         def perform(api):
             media_data = None
@@ -730,8 +736,22 @@ class LineAdapter:
                 ),
                 lambda: self._profile_view(api.get_profile()),
                 read_note,
+                self.square_snapshot,
             )
             preflight(fresh_context)
+            from .service import SQUARE_ACTIONS
+
+            if kind in SQUARE_ACTIONS:
+                from .additional_connection import invoke
+
+                return invoke(
+                    self.store,
+                    "square_execute",
+                    api.tokens.mid,
+                    kind=kind,
+                    payload=payload,
+                    expected=fresh_context["square"],
+                )
             if kind == "send_text":
                 from .identifiers import is_group
 
