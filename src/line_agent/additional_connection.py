@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import selectors
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -85,6 +87,57 @@ def show_auth(kind, value):
     return proc
 
 
+class PipeChunks:
+    """Bounded pipe reader: Windows select() accepts sockets, not subprocess pipes."""
+
+    def __init__(self, stream, *, threaded=None):
+        self.stream = stream
+        self.threaded = sys.platform == "win32" if threaded is None else threaded
+        self.selector = None
+        self.thread = None
+        self.stop = threading.Event()
+        self.queue = queue.Queue(maxsize=8)
+        if self.threaded:
+            self.thread = threading.Thread(target=self._pump, daemon=True)
+            self.thread.start()
+        else:
+            self.selector = selectors.DefaultSelector()
+            self.selector.register(stream, selectors.EVENT_READ)
+
+    def _pump(self):
+        while not self.stop.is_set():
+            try:
+                chunk = os.read(self.stream.fileno(), 65536)
+            except OSError:
+                chunk = False
+            while not self.stop.is_set():
+                try:
+                    self.queue.put(chunk, timeout=0.1)
+                    break
+                except queue.Full:
+                    continue
+            if not chunk:
+                return
+
+    def read(self, timeout):
+        if self.selector is not None:
+            return os.read(self.stream.fileno(), 65536) if self.selector.select(timeout) else None
+        try:
+            chunk = self.queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        if chunk is False:
+            raise AdditionalFailure("adapter", "pipe_read_failed")
+        return chunk
+
+    def close(self):
+        self.stop.set()
+        if self.selector is not None:
+            self.selector.close()
+        if self.thread is not None:
+            self.thread.join(timeout=1)
+
+
 def invoke(store, command, owner, *, display=None, **params):
     if command not in (
         "login",
@@ -152,7 +205,7 @@ def invoke(store, command, owner, *, display=None, **params):
             env=env,
         )
         dialog = None
-        selector = selectors.DefaultSelector()
+        reader = None
         try:
             request = {
                 "command": command,
@@ -162,7 +215,7 @@ def invoke(store, command, owner, *, display=None, **params):
             }
             proc.stdin.write((json.dumps(request) + "\n").encode())
             proc.stdin.close()
-            selector.register(proc.stdout, selectors.EVENT_READ)
+            reader = PipeChunks(proc.stdout)
             buffer = bytearray()
             deadline = time.monotonic() + (240 if command == "login" else 100)
             result = None
@@ -172,12 +225,11 @@ def invoke(store, command, owner, *, display=None, **params):
             while time.monotonic() < deadline:
                 if dialog and dialog.poll() is not None:
                     raise AdditionalFailure("owner_ui", "owner_cancelled_or_ui_failed")
-                events = selector.select(0.25)
-                if not events:
+                chunk = reader.read(0.25)
+                if chunk is None:
                     if proc.poll() is not None:
                         break
                     continue
-                chunk = os.read(proc.stdout.fileno(), 65536)
                 if not chunk:
                     break
                 buffer.extend(chunk)
@@ -339,7 +391,6 @@ def invoke(store, command, owner, *, display=None, **params):
             )
             raise AdditionalFailure("adapter", "invalid_adapter_response") from None
         finally:
-            selector.close()
             if proc.poll() is None:
                 proc.terminate()
             try:
@@ -347,6 +398,8 @@ def invoke(store, command, owner, *, display=None, **params):
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+            if reader is not None:
+                reader.close()
             if dialog and dialog.poll() is None:
                 dialog.terminate()
                 dialog.wait(timeout=5)

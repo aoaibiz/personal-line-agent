@@ -1,4 +1,5 @@
 import base64
+import os
 import time
 
 import pytest
@@ -26,7 +27,12 @@ def test_media_read_private_output_scope_and_limits(service, monkeypatch):
 
     path = Path(out["path"])
     assert path.read_bytes() == b"synthetic"
-    assert path.stat().st_mode & 0o777 == 0o600
+    from line_agent.platform_security import private_file
+
+    if os.name == "nt":
+        private_file(path, strict=True)
+    else:
+        assert path.stat().st_mode & 0o777 == 0o600
     assert out["preview"] is False
     monkeypatch.setattr(feature, "call", lambda *a, **k: {"ok": False, "reason": "upstream_failed"})
     assert feature.openchat_media_get(service, TARGET, "123")["ok"] is False

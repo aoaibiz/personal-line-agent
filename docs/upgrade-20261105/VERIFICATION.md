@@ -95,3 +95,9 @@ Owner narrowed the remaining scope: OpenChat completion; birthday best effort; V
 ## Installed OpenChat completion evidence (2026-11-06)
 
 Source2b5587d activated as immutable release32bc85ed34257f6a5c946332caea1fd30bc73e7e76c6a704d0e09d72400808ea. Previousa658dc54bf5e360227d41196eb5bf1b1a2a1f98f714cb8e7ef314189025744db retained. Stable bridge2 reports56tools/51operations. Formal openchat_search returned40items; openchat_resolve_public returnedok/canonical namespace/join_performedfalse; openchat_list returned54joined communities. birthday_profile_status returnedok/own_extended_profile/friend_birthdays_supportedfalse, no actual date/year output. Additional connectionok/live_verified; original integrityok,identitysaved,connected,E2EEready,receiverlistening,pausedfalse. Existing3uncertain operations unchanged. No authentication/grant changes or external writes performed during this activation.
+
+## Windows transport correction
+
+GitHub run42152069930 (Windows) exposed real WinError10038 in subprocess-pipe select, a POSIX mode assertion on Windows and an unsupported runner Node bootstrap. Replaced Windows-only pipe waiting with a bounded8-chunk background reader; POSIX selector behavior retained. Tests preserve POSIX0600 assertions and use actual strict Windows ACL checks there. CI now explicitly installs the already-required/tested Node24.22.1 using pinned official setup-node action instead of relying on runner defaults.
+
+Local full regression450passed/13skipped. Actual synthetic25MiB framing tested through both readers;2MiB output drained through EOF, bounded queue/thread shutdown and safe failed-read diagnostic tested. Two independent delta reviews passed after restoring the POSIX permission assertion. No credential/authority changes. Windows result after the correction is recorded separately; source correction is not claimed as actual Windows LINE authentication.
