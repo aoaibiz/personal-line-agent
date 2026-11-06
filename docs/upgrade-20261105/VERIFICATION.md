@@ -71,3 +71,11 @@ Flex/template support added with bounded roots, structure, HTTPS URI fields and 
 ## Cover and rich-message release candidate (2026-11-06)
 
 437 Python tests passed/13 skipped;19 Node tests; Ruff clean. Source→sdist→wheel build passed with profile-cover module, preparation validator and BSD license included. Independent cover contract/security reviews passed after adding closed failure propagation, persisted intended upload identity, read-only reconciliation and sdist notice. No actual profile change or external send used as a test. Actual own-cover preflight passed; pending installed-tool verification recorded after activation below.
+
+## Installed final candidate evidence (2026-11-06)
+
+Sourcead7921a deployed as immutable releasea658dc54bf5e360227d41196eb5bf1b1a2a1f98f714cb8e7ef314189025744db. Previous46ed48518e844052a23415a286ee4f2d198937f8c165af6378382e1de851783e retained for code-only rollback. Formal bridge2:52tools/44typedoperations; set_profile_background present and absent from prior grants as expected.
+
+Formal installed-tool checks: own background statusok/configured/namespacec; additional connectionok/live_verified; original storeintegrityok,connected,identitysaved,E2EEready,receiverlistening,pausedfalse. Three existing uncertain operations unchanged. Owner-confirmed native Mac LINE login and actual conversation UI were observed before these checks; no additional authentication occurred afterward.
+
+Installed albums_list→album_photos_list→album_media_get returned2albums,6photos,original1326814bytes with SHA256e90e386318c24313445b7b830c8fad6b3a7a18ce07407621bc7927a3dcffe3a0, identical to the visually inspected original. A second authorized group returned authoritative0albums. No message/profile writes were performed during deployment verification. These real reads do not establish live write availability for all new operations.
