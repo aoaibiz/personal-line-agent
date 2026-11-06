@@ -67,3 +67,7 @@ Read-only current-account preflight fetched the chat and community and verified 
 ## LIFF rich payload delta (2026-11-06)
 
 Flex/template support added with bounded roots, structure, HTTPS URI fields and preparation-time validation. Independent review found non-string URI values and Python/JS Unicode length differences; fixed with explicit string validation and UTF-16 limits across rich and top-level text fields. Targeted Python8/Node7 passed; no live share or permission grant performed. Installed basic release46ed48518e844052a23415a286ee4f2d198937f8c165af6378382e1de851783e formal checks: original connected/E2EEready/receiverlistening, additional live_verified, call-link list0, capabilities50tools43operations. Rich delta pending activation.
+
+## Cover and rich-message release candidate (2026-11-06)
+
+437 Python tests passed/13 skipped;19 Node tests; Ruff clean. Source→sdist→wheel build passed with profile-cover module, preparation validator and BSD license included. Independent cover contract/security reviews passed after adding closed failure propagation, persisted intended upload identity, read-only reconciliation and sdist notice. No actual profile change or external send used as a test. Actual own-cover preflight passed; pending installed-tool verification recorded after activation below.

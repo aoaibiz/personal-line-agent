@@ -37,6 +37,11 @@ STAGES = {
     "note_write",
 }
 REASONS = {
+    "cover_upstream_failed": "背景画像のサービス応答を確認できませんでした。",
+    "cover_schema_unverified": "この背景画像の形式はまだ対応を確認できていません。",
+    "cover_changed": "背景画像が変わったため操作を止めました。",
+    "cover_upload_unconfirmed": "背景画像のアップロード結果を確認できません。再実行せず状態を確認してください。",
+    "cover_apply_unconfirmed": "背景画像の反映を確認できません。再実行せず状態を確認してください。",
     "authentication_ui_unsupported": "このホストにはスマホ認証画面の対応機能がありません。認証は開始していません。",
     "authentication_ui_unavailable": "本人確認画面を利用できませんでした。秘密はチャットへ返していません。",
     "authentication_ui_timeout": "本人確認画面の待機時間が終了しました。",
@@ -207,6 +212,11 @@ def diagnostic_error(stage, error):
             reasons = {
                 key: key
                 for key in (
+                    "cover_upstream_failed",
+                    "cover_schema_unverified",
+                    "cover_changed",
+                    "cover_upload_unconfirmed",
+                    "cover_apply_unconfirmed",
                     "call_link_not_owned",
                     "call_link_changed",
                     "liff_consent_required",

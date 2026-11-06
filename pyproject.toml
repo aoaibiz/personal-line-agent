@@ -39,6 +39,7 @@ packages = ["src/line_agent"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "adapters/linejs/worker.mjs" = "line_agent/linejs/worker.mjs"
+"adapters/linejs/profile-cover.mjs" = "line_agent/linejs/profile-cover.mjs"
 "adapters/linejs/call-links.mjs" = "line_agent/linejs/call-links.mjs"
 "adapters/linejs/liff-share.mjs" = "line_agent/linejs/liff-share.mjs"
 "adapters/linejs/square-actions.mjs" = "line_agent/linejs/square-actions.mjs"
@@ -47,11 +48,12 @@ packages = ["src/line_agent"]
 "adapters/linejs/identity.mjs" = "line_agent/linejs/identity.mjs"
 "adapters/linejs/package.json" = "line_agent/linejs/package.json"
 "adapters/linejs/package-lock.json" = "line_agent/linejs/package-lock.json"
+"adapters/linejs/LICENSE.CHRLINE.txt" = "line_agent/linejs/LICENSE.CHRLINE.txt"
 "adapters/linejs/LICENSE.linejs.txt" = "line_agent/linejs/LICENSE.linejs.txt"
 
 [tool.hatch.build.targets.sdist]
 exclude = ["**/node_modules/**", "**/__pycache__/**", ".venv/**", ".monitor/**"]
-include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "docs/upgrade-20261105/*.md", "docs/upgrade-20261105/*.txt", "THIRD_PARTY_NOTICES.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock", "adapters/linejs/*.mjs", "adapters/linejs/package*.json", "adapters/linejs/LICENSE.linejs.txt"]
+include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "docs/upgrade-20261105/*.md", "docs/upgrade-20261105/*.txt", "THIRD_PARTY_NOTICES.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock", "adapters/linejs/*.mjs", "adapters/linejs/package*.json", "adapters/linejs/LICENSE.linejs.txt", "adapters/linejs/LICENSE.CHRLINE.txt"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

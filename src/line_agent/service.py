@@ -251,9 +251,12 @@ SQUARE_ACTIONS = {
     "square_leave_chat": SquareTarget,
 }
 
-PROFILE_ACTIONS = {"set_profile_name", "set_profile_status", "set_profile_image"} | set(
-    CALL_LINK_ACTIONS
-)
+PROFILE_ACTIONS = {
+    "set_profile_name",
+    "set_profile_status",
+    "set_profile_image",
+    "set_profile_background",
+} | set(CALL_LINK_ACTIONS)
 
 
 MESSAGE_ACTIONS = {"react_message", "cancel_reaction", "mark_read", "unsend_message"}
@@ -284,6 +287,7 @@ ACTION_MODELS = {
     **CALL_LINK_ACTIONS,
     "liff_share": LiffShare,
     "set_profile_image": ProfileImage,
+    "set_profile_background": ProfileImage,
     "pin_message": PinMessage,
     "set_chat_bgm": ChatBgm,
     "note_like": NoteLike,
@@ -339,6 +343,7 @@ def action_context(
     note=None,
     square=None,
     call_link=None,
+    cover=None,
 ):
     if kind in SQUARE_ACTIONS:
         if square is None:
@@ -364,6 +369,10 @@ def action_context(
             if call_link is None:
                 raise ValueError("call_link_read_unavailable")
             context["call_link"] = call_link(kind, payload)
+        if kind == "set_profile_background":
+            if cover is None:
+                raise ValueError("cover_read_unavailable")
+            context["cover"] = cover()
         return context
     if kind in MESSAGE_ACTIONS:
         matches = [
@@ -745,6 +754,7 @@ class AgentService:
             getattr(self.line, "note_snapshot", None),
             getattr(self.line, "square_snapshot", None),
             getattr(self.line, "call_link_snapshot", None),
+            getattr(self.line, "cover_snapshot", None),
         )
 
     def prepare(self, kind, payload):
@@ -761,7 +771,7 @@ class AgentService:
             "message", f"{payload['to']}:{payload['in_reply_to']}"
         ):
             raise ValueError("返信先はこの会話の取得済みメッセージを指定してください")
-        if kind in {"send_media", "set_profile_image"}:
+        if kind in {"send_media", "set_profile_image", "set_profile_background"}:
             media = self.store.get("media", payload["media_id"])
             if not media:
                 raise ValueError("先にローカルのstage-mediaで添付を登録してください")
@@ -821,6 +831,10 @@ class AgentService:
                 context["group_members"]
             ):
                 raise ValueError("invalid_kick_targets")
+        if kind == "set_profile_background":
+            # Persist the intended OBS ID before any upload. Reconciliation reads
+            # this encrypted action; unknown writes never generate a new object.
+            payload["cover_object_id"] = uuid.uuid4().hex
         action = {
             "id": str(uuid.uuid4()),
             "kind": kind,

@@ -114,6 +114,8 @@ def invoke(store, command, owner, *, display=None, **params):
         "square_preflight",
         "square_execute",
         "profile_image",
+        "cover_preflight",
+        "cover_set",
         "pin_message",
         "set_chat_bgm",
     ):
@@ -207,6 +209,11 @@ def invoke(store, command, owner, *, display=None, **params):
                         dialog = display(kind, event.get("value"))
                     elif kind == "error":
                         allowed = {
+                            "cover_upstream_failed",
+                            "cover_schema_unverified",
+                            "cover_changed",
+                            "cover_upload_unconfirmed",
+                            "cover_apply_unconfirmed",
                             "owner_mismatch",
                             "group_mapping_unavailable",
                             "group_mapping_ambiguous",

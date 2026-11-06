@@ -693,6 +693,12 @@ class LineAdapter:
 
         return self.call(lambda api: note_snapshot(api, self.store, chat, post_id))
 
+    def cover_snapshot(self):
+        from .additional_connection import invoke
+
+        owner = (self.store.get("setting", "identity") or {}).get("mid")
+        return invoke(self.store, "cover_preflight", owner)
+
     def call_link_snapshot(self, kind, payload):
         from .additional_connection import invoke
 
@@ -708,7 +714,7 @@ class LineAdapter:
     def execute(self, kind, payload, *, preflight):
         def perform(api):
             media_data = None
-            if kind in {"send_media", "set_profile_image"}:
+            if kind in {"send_media", "set_profile_image", "set_profile_background"}:
                 from .media import load_bytes
 
                 media_data, meta = load_bytes(self.store, payload["media_id"])
@@ -744,6 +750,7 @@ class LineAdapter:
                 read_note,
                 self.square_snapshot,
                 self.call_link_snapshot,
+                self.cover_snapshot,
             )
             preflight(fresh_context)
             from .service import CALL_LINK_ACTIONS, SQUARE_ACTIONS
@@ -853,7 +860,7 @@ class LineAdapter:
                 else:
                     options["bgm_info"] = payload["bgm_info"]
                 return client.invoke(kind, **options)
-            if kind == "set_profile_image":
+            if kind in {"set_profile_image", "set_profile_background"}:
                 import base64
 
                 from .additional_connection import invoke
@@ -861,8 +868,16 @@ class LineAdapter:
 
                 return invoke(
                     self.store,
-                    "profile_image",
+                    "profile_image" if kind == "set_profile_image" else "cover_set",
                     api.tokens.mid,
+                    **(
+                        {
+                            "expected": fresh_context["cover"],
+                            "upload_id": payload["cover_object_id"],
+                        }
+                        if kind == "set_profile_background"
+                        else {}
+                    ),
                     content_type=profile_image_type(media_data),
                     data=base64.b64encode(media_data).decode(),
                 )

@@ -211,6 +211,37 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=read)
     @boundary
+    def profile_background_status() -> dict[str, Any]:
+        """本人の背景画像設定を確認。画像IDや認証情報は返さない。"""
+        if service.paused():
+            raise ValueError("agent_paused")
+        service.line.cover_snapshot()
+        return {"ok": True, "configured": True, "namespace": "c"}
+
+    @server.tool(annotations=read)
+    @boundary
+    def profile_background_reconcile(request_id: str) -> dict[str, Any]:
+        """結果不明の背景画像操作を再送せず再確認。保存済み操作との一致だけを返す。"""
+        import uuid
+        if service.paused() or str(uuid.UUID(request_id)) != request_id:
+            raise ValueError("invalid_request")
+        saved = service.store.get("operation_request", request_id)
+        if not saved:
+            raise ValueError("request_not_found")
+        action = service.action(saved["action_id"])
+        if action["kind"] != "set_profile_background":
+            raise ValueError("not_cover_operation")
+        current = service.line.cover_snapshot()
+        previous = action["context"]["cover"]
+        if current["owner"] != previous["owner"]:
+            raise ValueError("owner_mismatch")
+        match = ("applied" if current["object_id"] == action["payload"]["cover_object_id"]
+                 else "previous" if current["object_id"] == previous["object_id"] else "changed")
+        return {"ok": True, "current_match": match, "operation_state": action["state"],
+                "retried": False, "ledger_changed": False}
+
+    @server.tool(annotations=read)
+    @boundary
     def call_links_list() -> dict[str, Any]:
         """本人の通話リンクID・タイトルだけを取得。通話開始・マイク・認証token取得は行わない。"""
         from .additional_connection import AdditionalFailure, invoke

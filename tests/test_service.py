@@ -43,6 +43,7 @@ class FakeLine:
                 note=getattr(self, "note_snapshot", None),
                 square=getattr(self, "square_snapshot", None),
                 call_link=getattr(self, "call_link_snapshot", None),
+                cover=getattr(self, "cover_snapshot", None),
             )
         )
         self.calls.append((kind, payload))
