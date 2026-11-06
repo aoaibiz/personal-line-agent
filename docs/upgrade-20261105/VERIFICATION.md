@@ -63,3 +63,7 @@ Read-only current-account preflight fetched the chat and community and verified 
 ### Call-link / LIFF candidate
 
 431 Python tests passed, 13 environment-specific tests skipped; 14 Node contract tests passed. Ruff and worker syntax checks passed. Actual own call-link list returned a successful empty list; no link creation/update/delete or LIFF share was sent as a test. Independent contract/security reviews checked exact generated argument/response forms, owner/target bindings, no automatic LIFF consent, secret filtering, and final-result diagnostics.
+
+## LIFF rich payload delta (2026-11-06)
+
+Flex/template support added with bounded roots, structure, HTTPS URI fields and preparation-time validation. Independent review found non-string URI values and Python/JS Unicode length differences; fixed with explicit string validation and UTF-16 limits across rich and top-level text fields. Targeted Python8/Node7 passed; no live share or permission grant performed. Installed basic release46ed48518e844052a23415a286ee4f2d198937f8c165af6378382e1de851783e formal checks: original connected/E2EEready/receiverlistening, additional live_verified, call-link list0, capabilities50tools43operations. Rich delta pending activation.

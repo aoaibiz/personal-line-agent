@@ -121,3 +121,44 @@ def test_additional_closed_reason_survives_operation_result(service):
         service.execute(action["id"], delegation_principal=local_principal(service))
     assert error.value.reason == "call_link_changed"
     assert service.action(action["id"])["state"] == "prepared"
+
+
+def test_rich_liff_invalid_input_rejected_before_approval(service):
+    payload = {
+        "group": "c" + "1" * 32,
+        "liff_id": "1234567890-abc",
+        "messages": [
+            {
+                "type": "flex",
+                "altText": "x",
+                "contents": {"type": "bubble", "action": {"type": "uri", "uri": 42}},
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="https_uri"):
+        service.prepare("liff_share", payload)
+    assert not list(service.store.records("action"))
+    payload["messages"][0]["contents"] = {"type": "invented"}
+    with pytest.raises(ValueError, match="root_invalid"):
+        service.prepare("liff_share", payload)
+
+
+def test_rich_liff_uses_javascript_utf16_string_limit():
+    from line_agent.liff_validation import validate_messages
+
+    with pytest.raises(ValueError, match="text_limit"):
+        validate_messages([{"type": "flex", "contents": {"type": "bubble", "text": "😀" * 6000}}])
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"type": "flex", "altText": "😀" * 300, "contents": {"type": "bubble"}},
+        {"type": "text", "text": "😀" * 3000},
+    ],
+)
+def test_liff_top_level_utf16_limits(message):
+    from line_agent.liff_validation import validate_messages
+
+    with pytest.raises(ValueError, match="text_limit"):
+        validate_messages([message])

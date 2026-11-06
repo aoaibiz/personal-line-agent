@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 
 from .counts import contact_counts
 from .identifiers import MID_PATTERN, is_group, is_user
@@ -178,10 +178,24 @@ class LiffImage(Strict):
     previewImageUrl: Annotated[str, Field(pattern=r"^https://", max_length=2000)]
 
 
+class LiffFlex(Strict):
+    type: Literal["flex"]
+    altText: Annotated[str, Field(min_length=1, max_length=400)]
+    contents: dict[str, JsonValue]
+
+
+class LiffTemplate(Strict):
+    type: Literal["template"]
+    altText: Annotated[str, Field(min_length=1, max_length=400)]
+    template: dict[str, JsonValue]
+
+
 class LiffShare(Strict):
     group: Mid
     liff_id: Annotated[str, Field(pattern=r"^[0-9]{5,20}-[A-Za-z0-9_-]{1,100}$")]
-    messages: list[LiffText | LiffSticker | LiffImage] = Field(min_length=1, max_length=5)
+    messages: list[LiffText | LiffSticker | LiffImage | LiffFlex | LiffTemplate] = Field(
+        min_length=1, max_length=5
+    )
 
 
 class CallLinkCreate(Strict):
@@ -739,6 +753,10 @@ class AgentService:
         if kind not in ACTION_MODELS:
             raise ValueError("許可されていない操作です")
         payload = ACTION_MODELS[kind].model_validate(payload).model_dump()
+        if kind == "liff_share":
+            from .liff_validation import validate_messages
+
+            validate_messages(payload["messages"])
         if payload.get("in_reply_to") and not self.store.get(
             "message", f"{payload['to']}:{payload['in_reply_to']}"
         ):

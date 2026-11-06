@@ -4,9 +4,29 @@ export function validateLiff(p) {
  if(JSON.stringify(p.messages).length>50000) throw Error('input_invalid');
  for(const m of p.messages) {
   if(!m||typeof m!=='object'||Array.isArray(m)) throw Error('input_invalid');
-  const fields={text:['type','text'],sticker:['type','packageId','stickerId'],image:['type','originalContentUrl','previewImageUrl']};
+  const fields={text:['type','text'],sticker:['type','packageId','stickerId'],image:['type','originalContentUrl','previewImageUrl'],flex:['type','altText','contents'],template:['type','altText','template']};
   const allowed=fields[m.type];
-  if(!allowed||Object.keys(m).some(k=>!allowed.includes(k))||allowed.some(k=>typeof m[k]!=='string')) throw Error('input_invalid');
+  if(!allowed||Object.keys(m).some(k=>!allowed.includes(k))||allowed.some(k=>!['contents','template'].includes(k)&&typeof m[k]!=='string')) throw Error('input_invalid');
+  if(m.type==='flex'||m.type==='template') {
+   if(!m.altText.length||m.altText.length>400) throw Error('input_invalid');
+   const root=m.type==='flex'?m.contents:m.template;
+   if(!root||typeof root!=='object'||Array.isArray(root)||!(m.type==='flex'?['bubble','carousel']:['buttons','confirm','carousel','image_carousel']).includes(root.type)) throw Error('input_invalid');
+   let nodes=0;
+   const visit=(value,depth,key='')=>{
+    if(++nodes>2000||depth>12) throw Error('input_invalid');
+    if(/(?:url|uri)$/i.test(key)&&typeof value!=='string') throw Error('input_invalid');
+    if(typeof value==='string') {
+     if(value.length>10000) throw Error('input_invalid');
+     if(/(?:url|uri)$/i.test(key)) {
+      const u=new URL(value);
+      if(u.protocol!=='https:'||u.username||u.password) throw Error('input_invalid');
+     }
+    } else if(value&&typeof value==='object') {
+     for(const [k,v] of Object.entries(value)) visit(v,depth+1,k);
+    } else if(value!==null&&typeof value!=='boolean'&&!(typeof value==='number'&&Number.isFinite(value))) throw Error('input_invalid');
+   };
+   visit(root,0);
+  }
   if(m.type==='text'&&(!m.text.length||m.text.length>5000)) throw Error('input_invalid');
   if(m.type==='sticker'&&(!/^\d{1,30}$/.test(m.packageId)||!/^\d{1,30}$/.test(m.stickerId))) throw Error('input_invalid');
   if(m.type==='image') for(const key of ['originalContentUrl','previewImageUrl']) {

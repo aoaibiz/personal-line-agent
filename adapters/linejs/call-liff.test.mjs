@@ -36,3 +36,16 @@ test('consent-required survives classification without granting permissions',asy
  const service={issueLiffView:async()=>{throw {data:{liffException:{code:'CONSENT_REQUIRED',payload:{secret:'never returned'}}}}}};
  await assert.rejects(tokenWithoutConsent(service,{chatMid:home,liffId:'1234567890-abc'}),/^Error: liff_consent_required$/);
 });
+
+test('bounded rich shares accept typed roots and reject executable links or runaway depth',()=>{
+ const p={home,liff_id:'1234567890-abc',messages:[{type:'flex',altText:'fixture',contents:{type:'bubble',body:{type:'box',layout:'vertical',contents:[{type:'text',text:'fixture'}]}}}]};
+ assert.doesNotThrow(()=>validateLiff(p));
+ p.messages[0].contents.body.contents[0].action={type:'uri',uri:'javascript:alert(1)'};
+ assert.throws(()=>validateLiff(p),/input_invalid/);
+ p.messages[0].contents={type:'bubble'};let nested=p.messages[0].contents;for(let i=0;i<14;i++){nested.x={};nested=nested.x;}
+ assert.throws(()=>validateLiff(p),/input_invalid/);
+});
+
+test('URI fields require strings, never nested objects/numbers/null',()=>{
+ for(const uri of [42,null,[],{}]) assert.throws(()=>validateLiff({home,liff_id:'1234567890-abc',messages:[{type:'flex',altText:'x',contents:{type:'bubble',action:{type:'uri',uri}}}]}),/input_invalid/);
+});
