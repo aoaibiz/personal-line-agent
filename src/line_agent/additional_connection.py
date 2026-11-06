@@ -138,6 +138,43 @@ class PipeChunks:
             self.thread.join(timeout=1)
 
 
+def adapter_environment():
+    # Windows os.environ keys are uppercase; keep OS bootstrap variables, not loaders.
+    allowed = {"PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT"}
+    return {k: v for k, v in os.environ.items() if k.upper() in allowed}
+
+
+def write_frame(stream, request, *, timeout=30, abort=None):
+    data = memoryview((json.dumps(request) + "\n").encode())
+    done = threading.Event()
+    failed = []
+
+    def write():
+        offset = 0
+        try:
+            while offset < len(data):
+                written = stream.write(data[offset:offset + 65536])
+                if not isinstance(written, int) or written <= 0:
+                    raise OSError("incomplete_write")
+                offset += written
+            stream.close()
+        except (OSError, ValueError):
+            failed.append(True)
+        finally:
+            done.set()
+
+    writer = threading.Thread(target=write, daemon=True)
+    writer.start()
+    if not done.wait(timeout):
+        if abort is not None:
+            abort()
+        writer.join(timeout=5)
+        raise AdditionalFailure("adapter_input", "pipe_write_timeout")
+    writer.join(timeout=1)
+    if failed:
+        raise AdditionalFailure("adapter_input", "pipe_write_failed")
+
+
 def invoke(store, command, owner, *, display=None, **params):
     if command not in (
         "login",
@@ -191,11 +228,7 @@ def invoke(store, command, owner, *, display=None, **params):
         if command == "login" and display is None:
             raise AdditionalFailure("owner_ui", "native_ui_unavailable")
         # Do not inherit loader/debug flags or NODE_OPTIONS from the host.
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k in ("PATH", "HOME", "LANG", "TMPDIR", "SystemRoot")
-        }
+        env = adapter_environment()
         proc = subprocess.Popen(
             [node, str(directory / "worker.mjs")],
             cwd=directory,
@@ -213,8 +246,9 @@ def invoke(store, command, owner, *, display=None, **params):
                 "state": state if command != "login" else None,
                 **params,
             }
-            proc.stdin.write((json.dumps(request) + "\n").encode())
-            proc.stdin.close()
+            write_frame(
+                proc.stdin, request, abort=lambda: proc.kill() if proc.poll() is None else None
+            )
             reader = PipeChunks(proc.stdout)
             buffer = bytearray()
             deadline = time.monotonic() + (240 if command == "login" else 100)
@@ -227,8 +261,6 @@ def invoke(store, command, owner, *, display=None, **params):
                     raise AdditionalFailure("owner_ui", "owner_cancelled_or_ui_failed")
                 chunk = reader.read(0.25)
                 if chunk is None:
-                    if proc.poll() is not None:
-                        break
                     continue
                 if not chunk:
                     break
@@ -345,6 +377,8 @@ def invoke(store, command, owner, *, display=None, **params):
                     elif kind not in ("qr", "pin"):
                         raise AdditionalFailure("adapter", "invalid_adapter_event")
             if result is None:
+                if proc.poll() not in (None, 0):
+                    raise AdditionalFailure("adapter_start", "adapter_process_failed")
                 raise AdditionalFailure(phase, "timeout_or_incomplete_response")
             if dialog and dialog.poll() is not None:
                 raise AdditionalFailure("owner_ui", "owner_cancelled_or_ui_failed")
