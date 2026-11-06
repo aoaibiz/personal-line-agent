@@ -714,7 +714,12 @@ class LineAdapter:
     def execute(self, kind, payload, *, preflight):
         def perform(api):
             media_data = None
-            if kind in {"send_media", "set_profile_image", "set_profile_background"}:
+            if kind in {
+                "send_media",
+                "set_profile_image",
+                "set_profile_background",
+                "square_send_media",
+            }:
                 from .media import load_bytes
 
                 media_data, meta = load_bytes(self.store, payload["media_id"])
@@ -778,6 +783,11 @@ class LineAdapter:
                 )
 
             if kind in SQUARE_ACTIONS:
+                wire_payload = payload
+                if kind == "square_send_media":
+                    import base64
+
+                    wire_payload = {**payload, "data": base64.b64encode(media_data).decode()}
                 from .additional_connection import invoke
 
                 return invoke(
@@ -785,7 +795,7 @@ class LineAdapter:
                     "square_execute",
                     api.tokens.mid,
                     kind=kind,
-                    payload=payload,
+                    payload=wire_payload,
                     expected=fresh_context["square"],
                 )
             if kind == "send_text":

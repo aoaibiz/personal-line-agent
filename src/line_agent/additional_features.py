@@ -21,7 +21,13 @@ def call(service, command, **params):
     if service.paused():
         raise ValueError("agent_paused")
     owner = (service.store.get("setting", "identity") or {}).get("mid")
-    if command not in {*READ_COMMANDS.values(), *DETAIL_COMMANDS.values()}:
+    if command not in {
+        *READ_COMMANDS.values(),
+        *DETAIL_COMMANDS.values(),
+        "square_resolve",
+        "square_media_read",
+        "birthday_profile",
+    }:
         raise ValueError("unsupported_read")
     try:
         value = invoke(service.store, command, owner, **params)
@@ -243,3 +249,106 @@ def openchat_read(service, target, kind="chat", cursor=None):
             "reason": "cursor_stalled" if str(error) == "cursor_stalled" else "unexpected_schema",
             "items": None,
         }
+
+
+def openchat_search(service, query, cursor=None):
+    from .openchat_search import search_public
+
+    return search_public(service, query, cursor)
+
+
+def openchat_media_get(service, target, message_id, preview=False):
+    import base64
+    import hashlib
+    import os
+
+    from .platform_security import private_directory, private_open, reject_reparse
+
+    if (
+        not re.fullmatch(r"m[0-9a-f]{32}", target)
+        or not re.fullmatch(r"[0-9]{1,30}", message_id)
+        or type(preview) is not bool
+    ):
+        raise ValueError("invalid_media_request")
+    reference = service.store.get("openchat_reference", target) or {}
+    owner = (service.store.get("setting", "identity") or {}).get("mid")
+    if (
+        not owner
+        or reference.get("owner") != owner
+        or reference.get("expires_at", 0) <= time.time()
+    ):
+        raise ValueError("openchat_list_required")
+    response = call(
+        service, "square_media_read", target=target, message_id=message_id, preview=preview
+    )
+    if not response["ok"]:
+        return response
+    data = response["data"]
+    encoded = data.get("data")
+    if not isinstance(encoded, str) or len(encoded) > 36 * 1024 * 1024:
+        raise ValueError("invalid_media_response")
+    raw = base64.b64decode(encoded, validate=True)
+    if not 0 < len(raw) <= 25 * 1024 * 1024:
+        raise ValueError("invalid_media_response")
+    # Private binary output; no filename/URL from an untrusted message is used.
+    folder = service.store.path / "openchat-media"
+    reject_reparse(folder)
+    private_directory(folder)
+    with service.store.exclusive("openchat-media-save"):
+        entries = list(folder.iterdir())
+        for entry in entries:
+            reject_reparse(entry)
+        if (
+            len(entries) >= 200
+            or any(not p.is_file() for p in entries)
+            or sum(p.stat().st_size for p in entries) + len(raw) > 256 * 1024 * 1024
+        ):
+            raise ValueError("media_quota_exceeded")
+        path = folder / (uuid.uuid4().hex + ".bin")
+        with os.fdopen(
+            private_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb"
+        ) as stream:
+            stream.write(raw)
+    return {
+        "ok": True,
+        "path": str(path),
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "preview": preview,
+        "visual_verified": False,
+    }
+
+
+def openchat_resolve_public(service, public_id):
+    if not isinstance(public_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", public_id):
+        raise ValueError("invalid_public_id")
+    owner = (service.store.get("setting", "identity") or {}).get("mid")
+    reference = service.store.get("openchat_public_reference", public_id) or {}
+    if (
+        not owner
+        or reference.get("owner") != owner
+        or reference.get("expires_at", 0) <= time.time()
+    ):
+        raise ValueError("public_search_required")
+    from .openchat_search import resolve_ticket
+    if service.paused():
+        raise ValueError("agent_paused")
+    ticket = resolve_ticket(public_id)
+    if not ticket["ok"]:
+        return ticket
+    response = call(service, "square_resolve", invitation_ticket=ticket["ticket"])
+    if not response["ok"]:
+        return response
+    item = pick(response["data"].get("square"), ("mid", "name", "desc", "state"))
+    if not re.fullmatch(r"s[0-9a-f]{32}", str(item.get("mid", ""))):
+        raise ValueError("unexpected_schema")
+    service.store.put(
+        "openchat_reference", item["mid"], {"owner": owner, "expires_at": time.time() + 900}
+    )
+    return {
+        "ok": True,
+        "item": item,
+        "identity_namespace": "square",
+        "untrusted_content": True,
+        "join_performed": False,
+    }

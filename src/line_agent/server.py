@@ -272,6 +272,35 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=read)
     @boundary
+    def openchat_search(query: str, cursor: str | None = None) -> dict[str, Any]:
+        """公式公開検索の先頭ページ。public_idは操作用IDではない。必要ならopenchat_resolve_publicで照合。参加・通知送信はしない。"""
+        from .additional_features import openchat_search as search
+        return search(service, query, cursor)
+
+    @server.tool(annotations=read)
+    @boundary
+    def openchat_resolve_public(public_id: str) -> dict[str, Any]:
+        """直前の公開検索結果を操作用のSquare IDへ読取照合。参加・権限変更はしない。"""
+        from .additional_features import openchat_resolve_public as resolve
+        return resolve(service, public_id)
+
+    @server.tool(annotations=read)
+    @boundary
+    def openchat_media_get(target: str, message_id: str, preview: bool = False) -> dict[str, Any]:
+        """取得済みOpenChatの直近100イベント内の添付を非公開保存。最大25MiB、任意URLは取得しない。"""
+        from .additional_features import openchat_media_get as fetch
+        return fetch(service, target, message_id, preview)
+
+    @server.tool(annotations=read)
+    @boundary
+    def birthday_profile_status() -> dict[str, Any]:
+        """本人の誕生日項目の有無と公開設定のみを確認。日付・年は返さず、友だちの誕生日一覧ではない。"""
+        from .additional_features import call
+        result = call(service, "birthday_profile")
+        return {"ok": True, **result["data"]} if result["ok"] else result
+
+    @server.tool(annotations=read)
+    @boundary
     def profile_get() -> dict[str, Any]:
         """本人の表示名・ステータスメッセージを取得。電話番号・メール・認証情報は返さない。"""
         if service.paused():

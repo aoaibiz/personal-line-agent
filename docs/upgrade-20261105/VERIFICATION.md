@@ -79,3 +79,15 @@ Sourcead7921a deployed as immutable releasea658dc54bf5e360227d41196eb5bf1b1a2a1f
 Formal installed-tool checks: own background statusok/configured/namespacec; additional connectionok/live_verified; original storeintegrityok,connected,identitysaved,E2EEready,receiverlistening,pausedfalse. Three existing uncertain operations unchanged. Owner-confirmed native Mac LINE login and actual conversation UI were observed before these checks; no additional authentication occurred afterward.
 
 Installed albums_list→album_photos_list→album_media_get returned2albums,6photos,original1326814bytes with SHA256e90e386318c24313445b7b830c8fad6b3a7a18ce07407621bc7927a3dcffe3a0, identical to the visually inspected original. A second authorized group returned authoritative0albums. No message/profile writes were performed during deployment verification. These real reads do not establish live write availability for all new operations.
+
+## OpenChat completion candidate (2026-11-06)
+
+Owner narrowed the remaining scope: OpenChat completion; birthday best effort; VOOM may be omitted. Current official LINE notice confirms VOOM/Birthday Cards retirement; own extended-profile birthday status read succeeds. Date/year are not returned and friend birthday retrieval is not claimed.
+
+- Source actual read: joined communities54; community-leave preflight proved joined membership without leaving. Canonical SDK owner is bound by the existing saved public-key proof, not string equality with Chrome opaque MID.
+- Source actual read: public search40 results → official cover href/Nuxt ticket equality → findSquareByInvitationTicketV2 → canonical Square identity succeeded; join_performed false. Failed authenticated search501/emid400 paths are not used as working fallbacks.
+- Regression447passed/13environment-specific skipped; Node26passed; Ruff and diff checks passed.
+- Actual pinned offline Thrift serialization: createSquare175bytes, joinSquare110, inviteIntoSquareChat99, destroyMessage62 with synthetic input, network forbidden. Independent review separately serialized V2 ticket lookup. Actual25MiB Python→Node frame test passed.
+- Build source→sdist→wheel passed;55wheel entries/130sdist entries. Required new modules/docs present, no node_modules/account database/env/auth files packaged.
+- Two independent delta perspectives passed after fixing create-only authorization, scoped media lock and stage-specific search diagnostics. Final resolver verified fixed host/no redirects/bounds, matching link/structured ticket, exact V2 request, owner-bound reference and no grant expansion. Private artifacts exclude account data and are not included in the OSS.
+- Live writes intentionally not performed: sends, invites, joins, creation, deletion, rename and departure still require an actual owner-requested use. Configuration completion is not a claim of live server acceptance for these operations.

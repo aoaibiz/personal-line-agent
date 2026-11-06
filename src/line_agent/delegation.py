@@ -10,7 +10,17 @@ from zoneinfo import ZoneInfo
 from pydantic import Field
 
 from .identifiers import is_group, is_user
-from .service import ACTION_MODELS, SQUARE_ACTIONS, Mid, SquareChatId, Strict, digest
+from .service import (
+    ACTION_MODELS,
+    SQUARE_ACTIONS,
+    SQUARE_COMMUNITY_ACTIONS,
+    Mid,
+    SquareChatId,
+    SquareCommunityId,
+    SquareInviteeId,
+    Strict,
+    digest,
+)
 
 
 class GroupRule(Strict):
@@ -22,6 +32,15 @@ class Scope(Strict):
     targets: list[Mid] = Field(default_factory=list, max_length=5000)
     square_targets: list[SquareChatId] = Field(default_factory=list, max_length=5000)
     blocked_square_targets: list[SquareChatId] = Field(default_factory=list, max_length=5000)
+    square_community_targets: list[SquareCommunityId] = Field(default_factory=list, max_length=5000)
+    blocked_square_community_targets: list[SquareCommunityId] = Field(
+        default_factory=list, max_length=5000
+    )
+    square_invitee_targets: list[SquareInviteeId] = Field(default_factory=list, max_length=5000)
+    blocked_square_invitee_targets: list[SquareInviteeId] = Field(
+        default_factory=list, max_length=5000
+    )
+    allow_square_create: bool = False
     all_targets: bool = False
     kinds: list[str] = Field(min_length=1, max_length=100)
     hours: int | None = Field(ge=1, le=24 * 365)
@@ -85,7 +104,13 @@ def candidate(service, data):
     scope = Scope.model_validate(data).model_dump()
     owner = (service.store.get("setting", "identity") or {}).get("mid")
     if (
-        (not scope["all_targets"] and not scope["targets"] and not scope["square_targets"])
+        (
+            not scope["all_targets"]
+            and not scope["targets"]
+            and not scope["square_targets"]
+            and not scope["square_community_targets"]
+            and not scope["allow_square_create"]
+        )
         or len(set(scope["targets"])) != len(scope["targets"])
         or len(set(scope["kinds"])) != len(scope["kinds"])
         or any(
@@ -271,6 +296,12 @@ def enroll_native(service, data):
                 else "上記の対象のみ"
             ),
             "OpenChat対象：" + display_json(scope.get("square_targets", [])),
+            "OpenChatコミュニティ対象：" + display_json(scope.get("square_community_targets", [])),
+            "OpenChatコミュニティ禁止対象："
+            + display_json(scope.get("blocked_square_community_targets", [])),
+            "OpenChat招待先：" + display_json(scope.get("square_invitee_targets", [])),
+            "OpenChat招待禁止先：" + display_json(scope.get("blocked_square_invitee_targets", [])),
+            "OpenChat作成：" + str(scope.get("allow_square_create", False)),
             "OpenChat禁止対象：" + display_json(scope.get("blocked_square_targets", [])),
             "禁止対象：" + display_json(scope["blocked_targets"]),
             "禁止操作：" + "、".join(labels.get(k, k) for k in scope["blocked_kinds"]),
@@ -364,10 +395,21 @@ def check(service, grant, action, principal, group_record=None):
         raise DelegationDenied("delegation_kind_out_of_scope")
     if kind in scope.get("blocked_kinds", []):
         raise DelegationDenied("delegation_kind_blocked")
-    if kind in SQUARE_ACTIONS:
-        if payload["target"] not in scope.get("square_targets", []):
+    if kind == "square_create":
+        if payload.get("mid") != (service.store.get("setting", "identity") or {}).get("mid"):
+            raise DelegationDenied("delegation_account_or_connection_changed")
+        if not scope.get("allow_square_create", False):
             raise DelegationDenied("delegation_target_out_of_scope")
-        if payload["target"] in scope.get("blocked_square_targets", []):
+    elif kind in SQUARE_ACTIONS:
+        key = "square_community_targets" if kind in SQUARE_COMMUNITY_ACTIONS else "square_targets"
+        if payload["target"] not in scope.get(key, []):
+            raise DelegationDenied("delegation_target_out_of_scope")
+        if payload["target"] in scope.get("blocked_" + key, []):
+            raise DelegationDenied("delegation_target_blocked")
+    if kind == "square_invite":
+        if not set(payload["invitees"]) <= set(scope.get("square_invitee_targets", [])):
+            raise DelegationDenied("delegation_target_out_of_scope")
+        if set(payload["invitees"]) & set(scope.get("blocked_square_invitee_targets", [])):
             raise DelegationDenied("delegation_target_blocked")
     allowed = set(scope["targets"])
     all_targets = scope.get("all_targets", False)
@@ -380,6 +422,10 @@ def check(service, grant, action, principal, group_record=None):
         if key not in payload:
             continue
         mid = payload[key]
+        if kind == "square_create" and key == "mid":
+            if mid in blocked:
+                raise DelegationDenied("delegation_target_blocked")
+            continue
         if not (is_user(mid) or is_group(mid)):
             raise DelegationDenied("delegation_target_type_unsupported")
         if mid in blocked:

@@ -39,6 +39,7 @@ packages = ["src/line_agent"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "adapters/linejs/worker.mjs" = "line_agent/linejs/worker.mjs"
+"adapters/linejs/birthday.mjs" = "line_agent/linejs/birthday.mjs"
 "adapters/linejs/profile-cover.mjs" = "line_agent/linejs/profile-cover.mjs"
 "adapters/linejs/call-links.mjs" = "line_agent/linejs/call-links.mjs"
 "adapters/linejs/liff-share.mjs" = "line_agent/linejs/liff-share.mjs"

@@ -161,7 +161,7 @@ class Store:
     @contextmanager
     def exclusive(self, name="sdk", blocking=True):
         """Serialize SDK operations/credential rotation across MCP and worker processes."""
-        if name not in ("sdk", "worker", "assistance", "native-confirmation", "requests", "supervisor", "authentication", "event-agent", "event-agent-service", "event-policy", "additional-linejs"):
+        if name not in ("sdk", "worker", "assistance", "native-confirmation", "requests", "supervisor", "authentication", "event-agent", "event-agent-service", "event-policy", "additional-linejs", "openchat-media-save"):
             raise ValueError("不明なロックです")
         with exclusive_file(self.path / f"{name}.lock", blocking=blocking):
             yield

@@ -14,3 +14,7 @@
 
 ## Before change
 Formal connection_check: integrity OK, identity saved, connected, E2EE ready, receiver listening, paused false, uncertain_operations 3. Existing uncertain operations must not be retried.
+
+## 2026-11-06 owner scope clarification
+
+Finish remaining OpenChat operations and investigate birthday feasibility. Owner explicitly permits omitting VOOM and treats birthday retrieval as non-blocking. New operation implementation/configuration completion is distinct from live write acceptance: do not manufacture external sends/joins/invites/deletes to test them. Existing grants stay unchanged. Source, safe reads, API-shaped tests, independent review, runtime activation and GitHub update are the completion path.

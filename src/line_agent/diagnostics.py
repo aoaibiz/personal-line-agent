@@ -37,6 +37,7 @@ STAGES = {
     "note_write",
 }
 REASONS = {
+    "square_join_state_conflict": "既に参加済み・申請中などのため、新しい参加操作を止めました。",
     "cover_upstream_failed": "背景画像のサービス応答を確認できませんでした。",
     "cover_schema_unverified": "この背景画像の形式はまだ対応を確認できていません。",
     "cover_changed": "背景画像が変わったため操作を止めました。",
@@ -162,6 +163,17 @@ for _reason in (
         "履歴ソースの本人対応・整合性・入力範囲を検証できません。原因コードを確認してください。"
     )
 KNOWN_LINE_CODES = {
+    400,
+    401,
+    403,
+    404,
+    409,
+    410,
+    500,
+    501,
+    503,
+    505,
+    506,
     0,
     1,
     5,
@@ -222,6 +234,7 @@ def diagnostic_error(stage, error):
                     "liff_consent_required",
                     "liff_connection_failed",
                     "square_not_member",
+                    "square_join_state_conflict",
                     "square_role_required",
                     "square_message_not_found",
                     "square_own_message_required",

@@ -218,6 +218,8 @@ CALL_LINK_ACTIONS = {
     "call_link_delete": CallLinkTarget,
 }
 
+SquareCommunityId = Annotated[str, Field(pattern=r"^s[0-9a-f]{32}$")]
+SquareInviteeId = Annotated[str, Field(pattern=r"^u[0-9a-f]{32}$")]
 SquareChatId = Annotated[str, Field(pattern=r"^m[0-9a-f]{32}$")]
 
 
@@ -242,7 +244,47 @@ class SquareRename(SquareTarget):
     name: Annotated[str, Field(min_length=1, max_length=50)]
 
 
+class SquareCommunity(Strict):
+    target: SquareCommunityId
+
+
+class SquareCommunityRename(SquareCommunity):
+    name: Annotated[str, Field(min_length=1, max_length=50)]
+
+
+class SquareJoin(SquareCommunity):
+    display_name: Annotated[str, Field(min_length=1, max_length=50)]
+    message: Annotated[str, Field(max_length=500)] = ""
+    passcode: Annotated[str, Field(max_length=32)] | None = None
+
+
+class SquareCreate(Strict):
+    mid: Mid
+    name: Annotated[str, Field(min_length=1, max_length=50)]
+    display_name: Annotated[str, Field(min_length=1, max_length=50)]
+    description: Annotated[str, Field(max_length=500)] = ""
+    searchable: bool = False
+
+
+class SquareInvite(SquareTarget):
+    invitees: list[SquareInviteeId] = Field(min_length=1, max_length=20)
+
+
+class SquareMedia(SquareTarget):
+    media_id: Annotated[str, Field(min_length=1, max_length=100)]
+    media_type: Literal["image", "video", "audio"]
+    duration_ms: int | None = Field(default=None, ge=0, le=86400000)
+
+
+SQUARE_COMMUNITY_ACTIONS = {"square_join", "square_leave", "square_rename"}
 SQUARE_ACTIONS = {
+    "square_create": SquareCreate,
+    "square_join": SquareJoin,
+    "square_leave": SquareCommunity,
+    "square_rename": SquareCommunityRename,
+    "square_invite": SquareInvite,
+    "square_send_media": SquareMedia,
+    "square_destroy_message": SquareMessage,
     "square_send_text": SquareText,
     "square_react": SquareReaction,
     "square_mark_read": SquareMessage,
@@ -348,7 +390,11 @@ def action_context(
     if kind in SQUARE_ACTIONS:
         if square is None:
             raise ValueError("square_read_unavailable")
-        return {"square": square(kind, payload)}
+        context = {"square": square(kind, payload)}
+        if kind == "square_create":
+            if profile is None or profile().get("mid") != payload["mid"]:
+                raise ValueError("profile_owner_mismatch")
+        return context
 
     def group_context(mid):
         row = group(mid)
@@ -771,10 +817,17 @@ class AgentService:
             "message", f"{payload['to']}:{payload['in_reply_to']}"
         ):
             raise ValueError("返信先はこの会話の取得済みメッセージを指定してください")
-        if kind in {"send_media", "set_profile_image", "set_profile_background"}:
+        if kind in {
+            "send_media",
+            "set_profile_image",
+            "set_profile_background",
+            "square_send_media",
+        }:
             media = self.store.get("media", payload["media_id"])
             if not media:
                 raise ValueError("先にローカルのstage-mediaで添付を登録してください")
+            if kind == "square_send_media" and media["size"] > 25 * 1024 * 1024:
+                raise ValueError("square_media_limit_25_mib")
             payload["media"] = media
         if kind == "send_mention":
             if not is_group(payload["to"]):

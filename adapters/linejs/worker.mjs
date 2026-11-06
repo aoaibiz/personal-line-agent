@@ -1,12 +1,13 @@
 /** Private stdio protocol; never forward output to MCP or logs. */
 import {coverContext,setCover} from './profile-cover.mjs';
+import {ownBirthday} from './birthday.mjs';
 import {enums} from '@evex-dev/linejs-types';
 import {Client} from '@evex-dev/linejs';
 import {BaseClient} from '@evex-dev/linejs/base';
 import {MemoryStorage} from '@evex-dev/linejs/storage';
 import {callLinks,callLinkContext,executeCallLink} from './call-links.mjs';
 import {shareLiff} from './liff-share.mjs';
-import {squareContext,executeSquare} from './square-actions.mjs';
+import {squareContext,executeSquare,readSquareMedia} from './square-actions.mjs';
 import {messageOptions,messagePage} from './openchat.mjs';
 import {noteUpdateBody} from './notes.mjs';
 import {ownsPublicKey, sharedMessageCount} from './identity.mjs';
@@ -46,9 +47,9 @@ const fetchBounded = async (url, init = {}) => {
 try {
   const lines=createInterface({input:process.stdin,crlfDelay:Infinity});
   const {value:line}=await lines[Symbol.asyncIterator]().next(); lines.close();
-  if(!line || line.length>8*1024*1024) throw Error('input_invalid');
+  if(!line || line.length>48*1024*1024) throw Error('input_invalid');
   req=JSON.parse(line);
-  if(!['cover_preflight','cover_set','call_links','call_link_preflight','call_link_execute','liff_share','square_preflight','square_execute','profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
+  if(!['square_resolve','square_media_read','birthday_profile','cover_preflight','cover_set','call_links','call_link_preflight','call_link_execute','liff_share','square_preflight','square_execute','profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
   activeDevice=req.command==='login'?(req.device??'DESKTOPMAC'):(req.state?.device??'DESKTOPMAC');
   if(!['DESKTOPMAC','IOSIPAD'].includes(activeDevice)) throw Error('input_invalid');
   const freshDevice=req.command==='login'&&(req.state?.device??'DESKTOPMAC')!==activeDevice;
@@ -173,6 +174,12 @@ try {
       result=messagePage(page,req.target);
     }
   }
+  else if(req.command==='square_resolve') {
+    if(typeof req.invitation_ticket!=='string'||! /^[A-Za-z0-9_-]{1,100}$/.test(req.invitation_ticket)) throw Error('input_invalid');
+    result=await client.base.square.findSquareByInvitationTicketV2({request:{invitationTicket:req.invitation_ticket}});
+  }
+  else if(req.command==='square_media_read') result=await readSquareMedia(client,req);
+  else if(req.command==='birthday_profile') result=await ownBirthday(client);
   else if(req.command==='call_links') result=await callLinks(client);
   else if(req.command==='call_link_preflight') result=await callLinkContext(client,req.kind,req.payload);
   else if(req.command==='call_link_execute') result=await executeCallLink(client,req.kind,req.payload,req.expected);
@@ -220,11 +227,12 @@ try {
   else result={connected:true};
   emit({event:'result',result,state:savedState()});
 } catch(e) {
-  const known=['cover_upstream_failed','cover_schema_unverified','cover_changed','cover_upload_unconfirmed','cover_apply_unconfirmed','group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','call_link_not_owned','call_link_changed','liff_consent_required','liff_connection_failed','square_not_member','square_role_required','square_message_not_found','square_own_message_required','square_context_changed','input_invalid','response_too_large','destination_denied','unexpected_schema'];
+  const known=['cover_upstream_failed','cover_schema_unverified','cover_changed','cover_upload_unconfirmed','cover_apply_unconfirmed','group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','call_link_not_owned','call_link_changed','liff_consent_required','liff_connection_failed','square_not_member','square_join_state_conflict','square_role_required','square_message_not_found','square_own_message_required','square_context_changed','input_invalid','response_too_large','destination_denied','unexpected_schema'];
   const network = ['ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENOTFOUND','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const timeout = e?.name==='TimeoutError' || e?.name==='AbortError' || ['ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const errorKind=['RequestError','TalkException','NotAuthorized','TypeError','ReferenceError','TimeoutError'].includes(e?.name)?e.name:'Other';
-  const code=Number.isInteger(e?.data?.code)?e.data.code:Number.isInteger(e?.code)?e.code:stage==='authentication'&&Number.isInteger(enums.ErrorCode?.[e?.data?.code])?enums.ErrorCode[e.data.code]:null;
+  const squareCode=Number.isInteger(e?.data?.errorCode)?e.data.errorCode:enums.SquareErrorCode?.[e?.data?.errorCode];
+  const code=Number.isInteger(squareCode)?squareCode:Number.isInteger(e?.data?.code)?e.data.code:Number.isInteger(e?.code)?e.code:stage==='authentication'&&Number.isInteger(enums.ErrorCode?.[e?.data?.code])?enums.ErrorCode[e.data.code]:null;
   emit({event:'error',diagnostic:{error_kind:errorKind,line_code:code,http_status:lastStatus},...(identityVerified?{state:savedState()}:{}),stage,reason:known.includes(e?.message)?e.message:timeout?'transport_timeout':network?'transport_failed':lastStatus>=400?'upstream_http_error':'upstream_failed'});
 }
 await pendingOutput;
