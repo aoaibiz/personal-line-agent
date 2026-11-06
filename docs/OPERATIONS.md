@@ -157,3 +157,9 @@ Normal typed operations now include same-group Note like/comment/share, recent t
 ### Explicit OpenChat write scope
 
 OpenChat writes require `square_targets` (m-prefixed chat IDs) and explicit operation kinds in the owner's delegation. Ordinary `all_targets` does not include them. `blocked_square_targets` overrides an allowed chat. Separate account owner identity, community membership and Square member identity are checked, including a final snapshot check in the private worker. Only the owner's own recent Square message can be unsent; renaming is currently restricted to community administrators. The worker never sends a goodbye on leave. Current typed operations: square_send_text (optional reply_to), square_react, square_mark_read, square_unsend, square_rename_chat, square_leave_chat. Unknown writes retain their original UUID and are never automatically retried. Configuration alone is not authority to send messages.
+
+### Call links and LIFF shares
+
+`call_links_list` returns only the owner's link ID, title and creation time. Typed call_link_create/update/delete require owner identity and fresh target ownership; they do not start calls, use a microphone or expose route tokens. Updating uses the pinned SDK's object-shaped targetAttribute, not the CLI's incorrect string cast.
+
+`liff_share` takes a normal group, explicit LIFF app ID and up to five typed text/sticker/HTTPS-image messages. Group mapping and fresh normal-group preflight remain mandatory. A fresh recipient/app view is issued without auto-consent. If consent is required, the final receipt retains liff_consent_required; the owner must use the app's first-party consent screen. No secret token is returned. Other external hosts or consent POSTs are not opened. New operation kinds do not expand saved delegation.

@@ -693,6 +693,12 @@ class LineAdapter:
 
         return self.call(lambda api: note_snapshot(api, self.store, chat, post_id))
 
+    def call_link_snapshot(self, kind, payload):
+        from .additional_connection import invoke
+
+        owner = (self.store.get("setting", "identity") or {}).get("mid")
+        return invoke(self.store, "call_link_preflight", owner, kind=kind, payload=payload)
+
     def square_snapshot(self, kind, payload):
         from .additional_connection import invoke
 
@@ -737,9 +743,32 @@ class LineAdapter:
                 lambda: self._profile_view(api.get_profile()),
                 read_note,
                 self.square_snapshot,
+                self.call_link_snapshot,
             )
             preflight(fresh_context)
-            from .service import SQUARE_ACTIONS
+            from .service import CALL_LINK_ACTIONS, SQUARE_ACTIONS
+
+            if kind in CALL_LINK_ACTIONS:
+                from .additional_connection import invoke
+
+                return invoke(
+                    self.store,
+                    "call_link_execute",
+                    api.tokens.mid,
+                    kind=kind,
+                    payload=payload,
+                    expected=fresh_context["call_link"],
+                )
+            if kind == "liff_share":
+                from .line_content import AdditionalContentClient
+
+                client = AdditionalContentClient(api, self.store)
+                return client.invoke(
+                    "liff_share",
+                    home=client.home(payload["group"]),
+                    liff_id=payload["liff_id"],
+                    messages=payload["messages"],
+                )
 
             if kind in SQUARE_ACTIONS:
                 from .additional_connection import invoke

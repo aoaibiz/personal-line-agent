@@ -211,6 +211,19 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=read)
     @boundary
+    def call_links_list() -> dict[str, Any]:
+        """本人の通話リンクID・タイトルだけを取得。通話開始・マイク・認証token取得は行わない。"""
+        from .additional_connection import AdditionalFailure, invoke
+        if service.paused():
+            raise ValueError("agent_paused")
+        owner=(service.store.get("setting","identity") or {}).get("mid")
+        try:
+            return {"ok":True,**invoke(service.store,"call_links",owner)}
+        except AdditionalFailure as e:
+            return {"ok":False,"stage":e.stage,"reason":e.reason,"items":None,**e.diagnostic}
+
+    @server.tool(annotations=read)
+    @boundary
     def openchat_list(kind: Literal["communities", "chats"] = "communities", cursor: str | None = None) -> dict[str, Any]:
         """追加接続のOpenChat一覧を1ページ取得。communitiesは参加一覧、chatsは参加イベント由来で網羅性なし。通常LINEと異なるID体系。
         新規参加・送信・既読・監視開始はしない。失敗は未取得として返す。"""

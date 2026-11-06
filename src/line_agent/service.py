@@ -161,6 +161,49 @@ class NoteLike(NoteTarget):
     reaction: Literal["1001", "1002", "1003", "1004", "1005", "1006"] = "1003"
 
 
+class LiffText(Strict):
+    type: Literal["text"]
+    text: Annotated[str, Field(min_length=1, max_length=5000)]
+
+
+class LiffSticker(Strict):
+    type: Literal["sticker"]
+    packageId: MessageId
+    stickerId: MessageId
+
+
+class LiffImage(Strict):
+    type: Literal["image"]
+    originalContentUrl: Annotated[str, Field(pattern=r"^https://", max_length=2000)]
+    previewImageUrl: Annotated[str, Field(pattern=r"^https://", max_length=2000)]
+
+
+class LiffShare(Strict):
+    group: Mid
+    liff_id: Annotated[str, Field(pattern=r"^[0-9]{5,20}-[A-Za-z0-9_-]{1,100}$")]
+    messages: list[LiffText | LiffSticker | LiffImage] = Field(min_length=1, max_length=5)
+
+
+class CallLinkCreate(Strict):
+    mid: Mid
+    title: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class CallLinkTarget(Strict):
+    mid: Mid
+    url_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
+
+
+class CallLinkUpdate(CallLinkTarget):
+    title: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+CALL_LINK_ACTIONS = {
+    "call_link_create": CallLinkCreate,
+    "call_link_update": CallLinkUpdate,
+    "call_link_delete": CallLinkTarget,
+}
+
 SquareChatId = Annotated[str, Field(pattern=r"^m[0-9a-f]{32}$")]
 
 
@@ -194,7 +237,9 @@ SQUARE_ACTIONS = {
     "square_leave_chat": SquareTarget,
 }
 
-PROFILE_ACTIONS = {"set_profile_name", "set_profile_status", "set_profile_image"}
+PROFILE_ACTIONS = {"set_profile_name", "set_profile_status", "set_profile_image"} | set(
+    CALL_LINK_ACTIONS
+)
 
 
 MESSAGE_ACTIONS = {"react_message", "cancel_reaction", "mark_read", "unsend_message"}
@@ -206,6 +251,7 @@ CONTACT_ACTIONS = {
     "unblock_contact",
 }
 GROUP_ACTIONS = {
+    "liff_share",
     "kick_members",
     "leave_group",
     "note_create",
@@ -221,6 +267,8 @@ GROUP_ACTIONS = {
 
 ACTION_MODELS = {
     **SQUARE_ACTIONS,
+    **CALL_LINK_ACTIONS,
+    "liff_share": LiffShare,
     "set_profile_image": ProfileImage,
     "pin_message": PinMessage,
     "set_chat_bgm": ChatBgm,
@@ -268,7 +316,15 @@ def validate_mid(value):
 
 
 def action_context(
-    kind, payload, recent_messages, contacts, group, profile=None, note=None, square=None
+    kind,
+    payload,
+    recent_messages,
+    contacts,
+    group,
+    profile=None,
+    note=None,
+    square=None,
+    call_link=None,
 ):
     if kind in SQUARE_ACTIONS:
         if square is None:
@@ -289,7 +345,12 @@ def action_context(
         current = profile()
         if current.get("mid") != payload["mid"]:
             raise ValueError("profile_owner_mismatch")
-        return {"profile": digest(current)}
+        context = {"profile": digest(current)}
+        if kind in CALL_LINK_ACTIONS:
+            if call_link is None:
+                raise ValueError("call_link_read_unavailable")
+            context["call_link"] = call_link(kind, payload)
+        return context
     if kind in MESSAGE_ACTIONS:
         matches = [
             m
@@ -669,6 +730,7 @@ class AgentService:
             getattr(self.line, "public_profile", None),
             getattr(self.line, "note_snapshot", None),
             getattr(self.line, "square_snapshot", None),
+            getattr(self.line, "call_link_snapshot", None),
         )
 
     def prepare(self, kind, payload):
@@ -985,6 +1047,11 @@ class AgentService:
                     raise
                 if isinstance(error, DiagnosticError):
                     raise
+                from .additional_connection import AdditionalFailure
+                from .line_content import ContentFailure
+
+                if isinstance(error, (AdditionalFailure, ContentFailure)):
+                    raise diagnostic_error("operation", error) from None
                 raise ValueError(
                     "実行開始前に停止しました。接続・承認・有効期限を確認してください"
                 ) from None

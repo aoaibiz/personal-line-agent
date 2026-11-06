@@ -122,6 +122,7 @@ def candidate(service, data):
                 "unsend_message",
                 "kick_members",
                 "leave_group",
+                "liff_share",
                 "note_create",
                 "note_update",
                 "note_delete",

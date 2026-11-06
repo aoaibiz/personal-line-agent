@@ -59,3 +59,7 @@ The controlled VOOM/birthday read probes also returned application code500 with 
 ### Square operation contract verification
 
 Read-only current-account preflight fetched the chat and community and verified the same joined Square member identity. No live Square write was sent. Synthetic tests cover foreign identities, stale snapshots, own-message provenance, separate explicit target grants, unknown-result non-replay and no goodbye. Independent review caught and corrected the SDK response field `createdSquareMessage` and signed i64 revision serialization; the pinned Thrift serializer was used to verify a large BigInt revision round-trip. These checks do not claim actual sent/leave server acceptance.
+
+### Call-link / LIFF candidate
+
+431 Python tests passed, 13 environment-specific tests skipped; 14 Node contract tests passed. Ruff and worker syntax checks passed. Actual own call-link list returned a successful empty list; no link creation/update/delete or LIFF share was sent as a test. Independent contract/security reviews checked exact generated argument/response forms, owner/target bindings, no automatic LIFF consent, secret filtering, and final-result diagnostics.

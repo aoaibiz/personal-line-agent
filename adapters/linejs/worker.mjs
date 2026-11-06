@@ -3,6 +3,8 @@ import {enums} from '@evex-dev/linejs-types';
 import {Client} from '@evex-dev/linejs';
 import {BaseClient} from '@evex-dev/linejs/base';
 import {MemoryStorage} from '@evex-dev/linejs/storage';
+import {callLinks,callLinkContext,executeCallLink} from './call-links.mjs';
+import {shareLiff} from './liff-share.mjs';
 import {squareContext,executeSquare} from './square-actions.mjs';
 import {messageOptions,messagePage} from './openchat.mjs';
 import {noteUpdateBody} from './notes.mjs';
@@ -25,7 +27,7 @@ const savedState=()=>({token:client.base.authToken,storage:storage.getAll(),owne
 const MAX = 32 * 1024 * 1024;
 const fetchBounded = async (url, init = {}) => {
   const u = new URL(url instanceof Request ? url.url : url);
-  if (u.protocol !== 'https:' || u.username || u.password || u.port || !['legy.line-apps.com','legy-jp.line-apps.com','gf.line.naver.jp','obs.line-apps.com'].includes(u.hostname)) throw Error('destination_denied');
+  if (u.protocol !== 'https:' || u.username || u.password || u.port || !((req?.command==='liff_share'&&u.hostname==='api.line.me'&&u.pathname==='/message/v3/share'&&!u.search&&!u.hash)||['legy.line-apps.com','legy-jp.line-apps.com','gf.line.naver.jp','obs.line-apps.com'].includes(u.hostname))) throw Error('destination_denied');
   if(u.pathname==='/acct/lgn/sq/v1') stage='qr_session_or_code';
   else if(u.pathname==='/acct/lp/lgn/sq/v1') stage='qr_phone_wait';
   const phase=u.pathname.startsWith('/acct/lp/')?'phone_wait':u.pathname.startsWith('/acct/')?'qr_setup':u.pathname==='/CH4'?'channel_authorize':u.pathname.startsWith('/ext/album/')?'album_list':u.pathname.startsWith('/oa/')?'album_download':u.pathname==='/enc'?'encrypted_talk':u.pathname.startsWith('/mh/')?'notes':'talk';
@@ -45,7 +47,7 @@ try {
   const {value:line}=await lines[Symbol.asyncIterator]().next(); lines.close();
   if(!line || line.length>8*1024*1024) throw Error('input_invalid');
   req=JSON.parse(line);
-  if(!['square_preflight','square_execute','profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
+  if(!['call_links','call_link_preflight','call_link_execute','liff_share','square_preflight','square_execute','profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
   activeDevice=req.command==='login'?(req.device??'DESKTOPMAC'):(req.state?.device??'DESKTOPMAC');
   if(!['DESKTOPMAC','IOSIPAD'].includes(activeDevice)) throw Error('input_invalid');
   const freshDevice=req.command==='login'&&(req.state?.device??'DESKTOPMAC')!==activeDevice;
@@ -170,6 +172,10 @@ try {
       result=messagePage(page,req.target);
     }
   }
+  else if(req.command==='call_links') result=await callLinks(client);
+  else if(req.command==='call_link_preflight') result=await callLinkContext(client,req.kind,req.payload);
+  else if(req.command==='call_link_execute') result=await executeCallLink(client,req.kind,req.payload,req.expected);
+  else if(req.command==='liff_share') result=await shareLiff(client,req);
   else if(req.command==='square_preflight') result=await squareContext(client,req.kind,req.payload);
   else if(req.command==='square_execute') result=await executeSquare(client,req.kind,req.payload,req.expected);
   else if(req.command==='profile_image') {
@@ -211,7 +217,7 @@ try {
   else result={connected:true};
   emit({event:'result',result,state:savedState()});
 } catch(e) {
-  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','square_not_member','square_role_required','square_message_not_found','square_own_message_required','square_context_changed','input_invalid','response_too_large','destination_denied','unexpected_schema'];
+  const known=['group_mapping_unavailable','group_mapping_ambiguous','owner_proof_unavailable','owner_mismatch','additional_connection_required','call_link_not_owned','call_link_changed','liff_consent_required','liff_connection_failed','square_not_member','square_role_required','square_message_not_found','square_own_message_required','square_context_changed','input_invalid','response_too_large','destination_denied','unexpected_schema'];
   const network = ['ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENOTFOUND','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const timeout = e?.name==='TimeoutError' || e?.name==='AbortError' || ['ETIMEDOUT','UND_ERR_CONNECT_TIMEOUT'].includes(e?.cause?.code);
   const errorKind=['RequestError','TalkException','NotAuthorized','TypeError','ReferenceError','TimeoutError'].includes(e?.name)?e.name:'Other';

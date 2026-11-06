@@ -5,7 +5,10 @@ from __future__ import annotations
 STAGES = {
     "authentication_ui",
     "group_key_register",
-    "e2ee_login", "e2ee_restore", "e2ee_save", "message_decrypt",
+    "e2ee_login",
+    "e2ee_restore",
+    "e2ee_save",
+    "message_decrypt",
     "event_receive",
     "assistance_model",
     "assistance_context",
@@ -27,6 +30,11 @@ STAGES = {
     "session_save",
     "identity_save",
     "operation",
+    "additional_authentication",
+    "additional_content",
+    "additional_identity",
+    "additional_group_mapping",
+    "note_write",
 }
 REASONS = {
     "authentication_ui_unsupported": "このホストにはスマホ認証画面の対応機能がありません。認証は開始していません。",
@@ -64,49 +72,115 @@ REASONS = {
     "unsupported_schema": "この工程の応答形式が実装の想定と一致しませんでした。",
     "unexpected_error": "この工程で想定外のエラーが起きました。診断コードをお知らせください。",
 }
+REASONS.update(
+    {
+        "call_link_not_owned": "この通話リンクは本人の一覧で確認できません。一覧を取得し直してください。",
+        "call_link_changed": "通話リンクの内容が変わりました。最新の内容を確認してください。",
+        "liff_consent_required": "このLINEアプリの利用同意が必要です。本人がアプリ画面で確認してください。自動では同意しません。",
+        "liff_connection_failed": "このLINEアプリへの接続を確認できません。アプリIDと利用状態を確認してください。",
+        "square_not_member": "このOpenChatへの本人の参加を確認できません。参加状態を確認してください。",
+        "square_role_required": "このOpenChat操作には管理権限が必要です。",
+        "square_message_not_found": "指定メッセージをこのOpenChatの直近履歴で確認できません。",
+        "square_own_message_required": "本人が送信したOpenChatメッセージだけを取り消せます。",
+        "square_context_changed": "OpenChatの参加状態または対象内容が変わりました。最新状態を確認してください。",
+    }
+)
+
 # Closed receiver codes: values never contain upstream content.
-REASONS.update({
-    "event_utf8_invalid": "受信ストリームがUTF-8として読めません。受信位置を保持して停止しました。",
-    "invalid_revision": "受信位置の形式が不正です。保存済み位置を保持して停止しました。",
-    "resync_required": "LINE側が受信位置の再同期を要求しました。欠落の可能性があるため停止しました。",
-    "sync_cursor_unverified": "再同期の位置を検証できません。保存済み位置を保持しました。",
-    "server_event_exception": "LINE側から受信エラーが返りました。接続状態を確認してください。",
-    "unsupported_event": "未対応の受信イベントです。対応形式の調査が必要です。",
-    "invalid_operation_batch": "受信イベントの形式が想定と異なります。保存位置は進めていません。",
-    "duplicate_operation_revision": "同じ受信位置のイベントが重複しています。保存位置を保持しました。",
-    "missing_account_identity": "受信するアカウントの本人確認情報がありません。",
-    "missing_resume_cursor": "受信の再開位置がありません。初期接続を確認してください。",
-    "invalid_message_event": "受信メッセージの形式が想定と異なります。",
-    "invalid_message_id": "受信メッセージの識別子が不正です。",
-    "invalid_recipient": "受信先の識別子を検証できません。",
-    "invalid_sender": "送信者の識別子を検証できません。",
-    "unexpected_direct_recipient": "保存先と異なるアカウント宛の受信を拒否しました。",
-    "sse_open_rejected": "LINE側が新着接続を受け付けませんでした。認証状態を確認してください。",
-    "stream_transport_failed": "新着接続が3回続けて失敗しました。通信状態を確認し受信を再開してください。",
-    "login_required": "保存済み接続とアカウントが一致しません。ローカルのloginで確認してください。",
-    "paused": "本人の一時停止設定に従って受信を停止しました。",
-})
-REASONS.update({
-    "external_ai_not_authorized": "このアカウント・履歴ソースの外部AI利用が許可されていません。",
-    "model_timeout": "AI応答が制限時間内に完了しませんでした。送信は行っていません。",
-    "model_cli_failed": "AI実行が失敗しました。処理記録のexit_code・provider_signalを確認してください。",
-    "model_cli_unavailable": "Codex CLIを起動できません。インストールと既存ログインを確認してください。",
-    "assistance_partial_failure": "分類・返信案の一部が失敗しました。処理状態と原因コードを確認してください。",
-    "assistance_interrupted": "前回の生成が中断されました。受信済みデータを保持し、復旧後に再試行できます。",
-})
-for _reason in ("model_cli_identity", "model_evidence_outside_context", "model_group_person_confusion",
-    "model_prior_evidence_invalid", "model_name_evidence_invalid",
-    "model_evidence_missing", "model_draft_incomplete", "model_draft_status_mismatch",
-    "model_turn_failed", "model_diagnostic_error", "model_tool_call_rejected",
-    "model_completion_missing", "model_output_invalid"):
-    REASONS[_reason] = "AI出力が契約を満たしていません。入力世代とモデル検証の記録を確認してください。"
-for _reason in ("context_source_changed", "context_snapshot_duplicate", "context_identity_missing",
-    "context_identity_ambiguous", "context_kind_mismatch", "context_prior_missing",
-    "context_source_count_mismatch", "context_incoming_missing", "context_message_too_large",
-    "context_budget_exceeded", "context_uncheckpointed_wal", "context_owner_not_corroborated",
-    "context_owner_binding_changed"):
-    REASONS[_reason] = "履歴ソースの本人対応・整合性・入力範囲を検証できません。原因コードを確認してください。"
-KNOWN_LINE_CODES = {0, 1, 5, 7, 8, 10, 20, 64, 82, 84, 85, 86, 87, 88, 90, 99, 100, 111, 116, 119, 10051, 10201, 10202}
+REASONS.update(
+    {
+        "event_utf8_invalid": "受信ストリームがUTF-8として読めません。受信位置を保持して停止しました。",
+        "invalid_revision": "受信位置の形式が不正です。保存済み位置を保持して停止しました。",
+        "resync_required": "LINE側が受信位置の再同期を要求しました。欠落の可能性があるため停止しました。",
+        "sync_cursor_unverified": "再同期の位置を検証できません。保存済み位置を保持しました。",
+        "server_event_exception": "LINE側から受信エラーが返りました。接続状態を確認してください。",
+        "unsupported_event": "未対応の受信イベントです。対応形式の調査が必要です。",
+        "invalid_operation_batch": "受信イベントの形式が想定と異なります。保存位置は進めていません。",
+        "duplicate_operation_revision": "同じ受信位置のイベントが重複しています。保存位置を保持しました。",
+        "missing_account_identity": "受信するアカウントの本人確認情報がありません。",
+        "missing_resume_cursor": "受信の再開位置がありません。初期接続を確認してください。",
+        "invalid_message_event": "受信メッセージの形式が想定と異なります。",
+        "invalid_message_id": "受信メッセージの識別子が不正です。",
+        "invalid_recipient": "受信先の識別子を検証できません。",
+        "invalid_sender": "送信者の識別子を検証できません。",
+        "unexpected_direct_recipient": "保存先と異なるアカウント宛の受信を拒否しました。",
+        "sse_open_rejected": "LINE側が新着接続を受け付けませんでした。認証状態を確認してください。",
+        "stream_transport_failed": "新着接続が3回続けて失敗しました。通信状態を確認し受信を再開してください。",
+        "login_required": "保存済み接続とアカウントが一致しません。ローカルのloginで確認してください。",
+        "paused": "本人の一時停止設定に従って受信を停止しました。",
+    }
+)
+REASONS.update(
+    {
+        "external_ai_not_authorized": "このアカウント・履歴ソースの外部AI利用が許可されていません。",
+        "model_timeout": "AI応答が制限時間内に完了しませんでした。送信は行っていません。",
+        "model_cli_failed": "AI実行が失敗しました。処理記録のexit_code・provider_signalを確認してください。",
+        "model_cli_unavailable": "Codex CLIを起動できません。インストールと既存ログインを確認してください。",
+        "assistance_partial_failure": "分類・返信案の一部が失敗しました。処理状態と原因コードを確認してください。",
+        "assistance_interrupted": "前回の生成が中断されました。受信済みデータを保持し、復旧後に再試行できます。",
+    }
+)
+for _reason in (
+    "model_cli_identity",
+    "model_evidence_outside_context",
+    "model_group_person_confusion",
+    "model_prior_evidence_invalid",
+    "model_name_evidence_invalid",
+    "model_evidence_missing",
+    "model_draft_incomplete",
+    "model_draft_status_mismatch",
+    "model_turn_failed",
+    "model_diagnostic_error",
+    "model_tool_call_rejected",
+    "model_completion_missing",
+    "model_output_invalid",
+):
+    REASONS[_reason] = (
+        "AI出力が契約を満たしていません。入力世代とモデル検証の記録を確認してください。"
+    )
+for _reason in (
+    "context_source_changed",
+    "context_snapshot_duplicate",
+    "context_identity_missing",
+    "context_identity_ambiguous",
+    "context_kind_mismatch",
+    "context_prior_missing",
+    "context_source_count_mismatch",
+    "context_incoming_missing",
+    "context_message_too_large",
+    "context_budget_exceeded",
+    "context_uncheckpointed_wal",
+    "context_owner_not_corroborated",
+    "context_owner_binding_changed",
+):
+    REASONS[_reason] = (
+        "履歴ソースの本人対応・整合性・入力範囲を検証できません。原因コードを確認してください。"
+    )
+KNOWN_LINE_CODES = {
+    0,
+    1,
+    5,
+    7,
+    8,
+    10,
+    20,
+    64,
+    82,
+    84,
+    85,
+    86,
+    87,
+    88,
+    90,
+    99,
+    100,
+    111,
+    116,
+    119,
+    10051,
+    10201,
+    10202,
+}
 
 
 class DiagnosticError(Exception):
@@ -126,6 +200,43 @@ def diagnostic_error(stage, error):
     if isinstance(error, DiagnosticError):
         return error
     try:
+        from .additional_connection import AdditionalFailure
+        from .line_content import ContentFailure
+
+        if isinstance(error, (AdditionalFailure, ContentFailure)):
+            reasons = {
+                key: key
+                for key in (
+                    "call_link_not_owned",
+                    "call_link_changed",
+                    "liff_consent_required",
+                    "liff_connection_failed",
+                    "square_not_member",
+                    "square_role_required",
+                    "square_message_not_found",
+                    "square_own_message_required",
+                    "square_context_changed",
+                )
+            }
+            reasons.update(
+                transport_timeout="line_transport_failed",
+                transport_failed="line_transport_failed",
+                upstream_rejected="line_api_rejected",
+                upstream_failed="line_api_rejected",
+                upstream_http_error="line_api_rejected",
+                unexpected_schema="unsupported_schema",
+            )
+            info = (
+                error.diagnostic
+                if isinstance(error, AdditionalFailure)
+                else {"http_status": error.status, "line_code": error.code}
+            )
+            return DiagnosticError(
+                error.stage,
+                reasons.get(error.reason, "unexpected_error"),
+                http_status=info.get("http_status"),
+                line_code=info.get("line_code"),
+            )
         import sqlite3
 
         from keyring.errors import KeyringError
