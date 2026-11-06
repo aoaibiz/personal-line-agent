@@ -1,3 +1,11 @@
+# Current candidate — 2026-11-06 OpenChat completion
+
+Implementation/configuration activated: immutable runtime `32bc85ed34257f6a5c946332caea1fd30bc73e7e76c6a704d0e09d72400808ea`,56tools/51typed operations. Formal MCP public search40 → canonical identity resolution passed; joined communities54, own birthday-profile status, additional saved connection all succeeded. Original connection/E2EE/store integrity/receiver listening preserved; uncertain operations3 unchanged. IOSIPAD/native Mac LINE coexistence was observed in the earlier same-day check. Regression447passed/13skipped, Node26passed, two independent final reviews passed.
+
+[OpenChat command mapping and constraints](upgrade-20261105/OPENCHAT.md). New writes require actual owner-requested use; no unsolicited real sends/joins/invites/deletes were used as tests. Friend birthdays are optional and not provided. VOOM excluded following owner direction and official service retirement. Previous immutable runtime retained for code-only rollback. PR7 is updated; this is not a main-branch merge claim.
+
+## Historical checkpoints (superseded where the current candidate states otherwise)
+
 # 2026-11-06 additional-connection follow-up
 
 The additional desktop connection is restored and fresh-process reuse verified after owner QR authentication with the native Mac LINE app closed. The cause of prior LINE8 rejection is not proven; simultaneous native-app use is unverified. A live additional check and post-login reconnect verification now distinguish saved credentials from a working connection. Reviewed runtime `aa45d907…` is active, with49tools/27typed operations,416Python tests passed/13skipped and5Node tests passed. Album originals and OpenChat community/details reads passed through formal MCP after activation; original receiver listening and uncertain ledger3 preserved. See [verification](upgrade-20261105/VERIFICATION.md). Broader feature coverage remains explicitly incomplete.
@@ -67,10 +75,10 @@ These tests establish the tested paths and account conditions only. API presence
 
 ## Unverified / incomplete
 
-- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, and a new OS user/keychain setup. Receiver-service supervision and the observed OS restart are covered by the later dated records below. Initial terminal-based installation/authentication is allowed.
+- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, and a new OS user/keychain setup. Receiver-service supervision and the observed OS restart are covered by the later dated records below. Human terminal operation is not an allowed completion requirement; authorized agents perform internal commands and owner authentication uses a screen.
 - A fresh user's complete authentication and smartphone-to-host setup for every supported host.
 - All LINE message/media types, every account configuration and future upstream behavior.
-- Full smartphone history retrieval, expired media restoration, OpenChat and calendar integration.
+- Full smartphone history retrieval, expired media restoration and calendar integration. OpenChat support is now covered by the current candidate above.
 - Unattended free-form replies; optional background inference currently produces drafts and separate explicit template policies are a different authority.
 - A production public HTTP deployment and cryptographic audit of the external protocol implementation.
 
