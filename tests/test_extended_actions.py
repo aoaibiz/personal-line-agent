@@ -211,3 +211,71 @@ def test_new_send_profile_and_mute_dispatch(service):
     with pytest.raises(ValueError):
         adapter.execute("set_profile_name", {"mid": owner, "name": "synthetic"}, preflight=denied)
     assert len(calls) == before
+
+
+def test_pin_requires_exact_group_message_and_fresh_text(service):
+    from line_agent.service import action_context
+
+    group = "c" + "2" * 32
+    payload = {"group": group, "message_id": "123"}
+    rows = [{"id": "123", "to": group, "text": "original"}]
+
+    def context():
+        return action_context("pin_message", payload, lambda *a: rows, None, service.line.group)
+
+    before = context()
+    assert before["announcement_text"] == "original"
+    rows[0]["text"] = "edited"
+    assert context() != before
+    rows[0]["to"] = "c" + "3" * 32
+    with pytest.raises(ValueError, match="pin_requires_recent_group_text"):
+        context()
+
+
+@pytest.mark.parametrize("kind", ["note_like", "note_comment", "note_share"])
+def test_note_interactions_require_fresh_snapshot(service, kind):
+    from line_agent.service import action_context
+
+    payload = {"group": "c" + "2" * 32, "post_id": "123"}
+    with pytest.raises(ValueError, match="note_read_unavailable"):
+        action_context(kind, payload, None, None, service.line.group)
+    first = action_context(
+        kind, payload, None, None, service.line.group, note=lambda *a: {"revision": 1}
+    )
+    changed = action_context(
+        kind, payload, None, None, service.line.group, note=lambda *a: {"revision": 2}
+    )
+    assert first != changed
+
+
+def test_bgm_and_note_schema_bounds():
+    from line_agent.service import ACTION_MODELS
+
+    group = "c" + "2" * 32
+    with pytest.raises(ValueError):
+        ACTION_MODELS["set_chat_bgm"].model_validate({"group": group, "bgm_info": "x" * 2001})
+    with pytest.raises(ValueError):
+        ACTION_MODELS["note_like"].model_validate(
+            {"group": group, "post_id": "123", "reaction": "9999"}
+        )
+    with pytest.raises(ValueError):
+        ACTION_MODELS["note_share"].model_validate(
+            {"group": group, "post_id": "123", "to": "c" + "3" * 32}
+        )
+
+
+def test_profile_image_owner_staging_and_validation(service, tmp_path):
+    from line_agent.media import profile_image_type, stage_file
+
+    owner, peer = fixture(service)
+    service.line.public_profile = lambda: {"mid": owner, "displayName": "synthetic"}
+    path = tmp_path / "synthetic.png"
+    path.write_bytes(b"\x89PNG\r\n\x1a\nsynthetic")
+    media = stage_file(service.store, path)
+    with pytest.raises(ValueError, match="profile_owner_mismatch"):
+        service.prepare("set_profile_image", {"mid": peer, "media_id": media["id"]})
+    action = service.prepare("set_profile_image", {"mid": owner, "media_id": media["id"]})
+    assert action["payload"]["media"]["sha256"] == media["sha256"]
+    for data in [b"", b"x" * 20, b"\x89PNG\r\n\x1a\n" + b"x" * (5 * 1024 * 1024)]:
+        with pytest.raises(ValueError):
+            profile_image_type(data)

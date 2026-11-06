@@ -19,7 +19,8 @@ let stage = 'input';
 let lastStatus=null;
 let client, storage, req;
 let identityVerified=false;
-const savedState=()=>({token:client.base.authToken,storage:storage.getAll(),owner:req.owner,canonicalOwner:client.base.profile.mid,device:'DESKTOPMAC'});
+let activeDevice;
+const savedState=()=>({token:client.base.authToken,storage:storage.getAll(),owner:req.owner,canonicalOwner:client.base.profile.mid,device:activeDevice});
 const MAX = 32 * 1024 * 1024;
 const fetchBounded = async (url, init = {}) => {
   const u = new URL(url instanceof Request ? url.url : url);
@@ -41,11 +42,14 @@ const fetchBounded = async (url, init = {}) => {
 try {
   const lines=createInterface({input:process.stdin,crlfDelay:Infinity});
   const {value:line}=await lines[Symbol.asyncIterator]().next(); lines.close();
-  if(!line || line.length>6*1024*1024) throw Error('input_invalid');
+  if(!line || line.length>8*1024*1024) throw Error('input_invalid');
   req=JSON.parse(line);
-  if(!['login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
-  storage=new MemoryStorage(req.state?.storage || {});
-  const init={device:'DESKTOPMAC',endpoint:'legy-jp.line-apps.com',storage,fetch:fetchBounded};
+  if(!['profile_image','pin_message','set_chat_bgm','note_like','note_comment','note_share','login','check','albums','photos','photo','notes','resolve_chat','note_get','note_create','note_update','note_delete','squares','square_chats','square_get','square_chat_get','square_members','square_messages'].includes(req.command) || !ownerId(req.owner)) throw Error('input_invalid');
+  activeDevice=req.command==='login'?(req.device??'DESKTOPMAC'):(req.state?.device??'DESKTOPMAC');
+  if(!['DESKTOPMAC','IOSIPAD'].includes(activeDevice)) throw Error('input_invalid');
+  const freshDevice=req.command==='login'&&(req.state?.device??'DESKTOPMAC')!==activeDevice;
+  storage=new MemoryStorage(freshDevice?{}:(req.state?.storage || {}));
+  const init={device:activeDevice,endpoint:'legy-jp.line-apps.com',storage,fetch:fetchBounded};
   stage='authentication';
   const base=new BaseClient(init);
   base.on('update:authtoken',token=>{base.authToken=token;});
@@ -163,6 +167,42 @@ try {
     if(req.command==='square_messages') {
       const page=await client.base.square.fetchSquareChatEvents(messageOptions(req.target,req.sync_token,req.continuation_token));
       result=messagePage(page,req.target);
+    }
+  }
+  else if(req.command==='profile_image') {
+    if(typeof req.data!=='string'||req.data.length>7*1024*1024||!['image/png','image/jpeg'].includes(req.content_type)) throw Error('input_invalid');
+    const bytes=Buffer.from(req.data,'base64');
+    if(bytes.length<8||bytes.length>5*1024*1024||bytes.toString('base64')!==req.data) throw Error('input_invalid');
+    const png=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+    if(!(req.content_type==='image/png'?png:jpeg)) throw Error('input_invalid');
+    const uploaded=await client.uploadMyProfileImage(new Blob([bytes],{type:req.content_type}));
+    if(typeof uploaded.objHash!=='string'||!uploaded.objHash) throw Error('upstream_failed');
+    result={uploaded:true,applied:true};
+  }
+  else if(['pin_message','set_chat_bgm','note_like','note_comment','note_share'].includes(req.command)) {
+    if(typeof req.home!=='string'||!/^c[0-9a-f]{32}$/.test(req.home)) throw Error('input_invalid');
+    if(req.command==='pin_message') {
+      if(!id(req.message_id)||typeof req.text!=='string'||!req.text.length||req.text.length>1000) throw Error('input_invalid');
+      await client.base.talk.createChatRoomAnnouncement({reqSeq:await client.base.getReqseq(),chatRoomMid:req.home,type:'MESSAGE',contents:{text:req.text,link:`line://nv/chatMsg?chatId=${req.home}&messageId=${req.message_id}`}});
+      result={applied:true};
+    } else if(req.command==='set_chat_bgm') {
+      if(typeof req.bgm_info!=='string'||req.bgm_info.length>2000) throw Error('input_invalid');
+      await client.base.talk.updateChatRoomBGM({reqSeq:await client.base.getReqseq(),chatRoomMid:req.home,chatRoomBGMInfo:req.bgm_info});
+      result={applied:true};
+    } else {
+      if(!id(req.post_id)) throw Error('input_invalid');
+      if(req.command==='note_like') {
+        if(!['1001','1002','1003','1004','1005','1006'].includes(req.reaction)) throw Error('input_invalid');
+        result=await client.base.timeline.likePost({homeId:req.home,contentId:req.post_id,likeType:req.reaction,sourceType:'TALKROOM'});
+      }
+      if(req.command==='note_comment') {
+        if(typeof req.text!=='string'||!req.text.length||req.text.length>10000) throw Error('input_invalid');
+        result=await client.base.timeline.createComment({homeId:req.home,contentId:req.post_id,commentText:req.text,sourceType:'TALKROOM'});
+      }
+      if(req.command==='note_share') {
+        result=await client.base.timeline.sharePost({postId:req.post_id,chatMid:req.home,homeId:req.home});
+      }
     }
   }
   else result={connected:true};

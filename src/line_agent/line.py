@@ -696,7 +696,7 @@ class LineAdapter:
     def execute(self, kind, payload, *, preflight):
         def perform(api):
             media_data = None
-            if kind == "send_media":
+            if kind in {"send_media", "set_profile_image"}:
                 from .media import load_bytes
 
                 media_data, meta = load_bytes(self.store, payload["media_id"])
@@ -779,11 +779,43 @@ class LineAdapter:
                 from .identifiers import is_group
 
                 return api.send_message(message, encrypt=is_group(payload["to"]))
-            if kind in {"note_create", "note_update", "note_delete"}:
+            if kind in {
+                "note_create",
+                "note_update",
+                "note_delete",
+                "note_like",
+                "note_comment",
+                "note_share",
+            }:
                 from .line_content import execute_note
 
                 return execute_note(
                     api, self.store, kind, payload, note_snapshots.get(payload.get("post_id"))
+                )
+            if kind in {"pin_message", "set_chat_bgm"}:
+                from .line_content import AdditionalContentClient
+
+                client = AdditionalContentClient(api, self.store)
+                options = {"home": client.home(payload["group"])}
+                if kind == "pin_message":
+                    options.update(
+                        message_id=payload["message_id"], text=fresh_context["announcement_text"]
+                    )
+                else:
+                    options["bgm_info"] = payload["bgm_info"]
+                return client.invoke(kind, **options)
+            if kind == "set_profile_image":
+                import base64
+
+                from .additional_connection import invoke
+                from .media import profile_image_type
+
+                return invoke(
+                    self.store,
+                    "profile_image",
+                    api.tokens.mid,
+                    content_type=profile_image_type(media_data),
+                    data=base64.b64encode(media_data).decode(),
                 )
             if kind == "set_profile_name":
                 return api.set_display_name(payload["name"])
@@ -822,7 +854,12 @@ class LineAdapter:
                 return api.unsend_message(payload["message_id"])
             if kind == "mute_contact":
                 from okline.enums import ContactSetting
-                return api.update_contact_setting(payload["mid"], int(ContactSetting.CONTACT_SETTING_NOTIFICATION_DISABLE), "true" if payload["enabled"] else "false")
+
+                return api.update_contact_setting(
+                    payload["mid"],
+                    int(ContactSetting.CONTACT_SETTING_NOTIFICATION_DISABLE),
+                    "true" if payload["enabled"] else "false",
+                )
             if kind == "favorite_contact":
                 return api.set_favorite(payload["mid"], payload["enabled"])
             if kind == "hide_contact":

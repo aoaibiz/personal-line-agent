@@ -49,3 +49,9 @@ The core failures are resolved and the installed tool verified. The separately l
 - Original formal connection check:store integrityOK, identity preserved, E2EEready, connected, pausedfalse, uncertain operations3 untouched. Receiver cycled through starting/stopped; subsequent actual status showed listening and supervisor running the new release with failures0.
 - Final source suite416passed/13skipped; Node5passed; Ruffclean. Wheel47entries/sdist112, new module included, forbidden runtime/account/dependency paths and production-ID scan clean. Two independent delta reviews fixed pagination, missing payload handling and the prefixed device-error status flag; no unresolved findings in that delta. Existing live write and Windows limitations remain.
 - VOOM/birthday read paths returned application500 and were not shipped as working tools. Broader unintegrated families remain in COVERAGE; this record is not an all-reference-features-complete claim.
+
+### 2026-11-06 authorized tablet connection trial
+
+Owner approved IOSIPAD additional login. Fresh QR completed; same-owner public-key proof and a fresh saved-session check passed. Owner then logged into native Mac LINE; actual AX state showed conversation UI and no login controls. Additional saved-session check still passed, original connection_check returned connected/E2EE ready/receiver listening. Auth-only reviewed runtime `56ba0f022ad5d776d1da217139acbc5234b8ee29ebd63d2e6409621943ea29d3` activated and formal bridge additional_connection_check passed. This is observed coexistence, not a guarantee against future provider session revocation. No existing credentials/DB/ledger were rolled back.
+
+The controlled VOOM/birthday read probes also returned application code500 with IOSIPAD. Device change therefore did not resolve that separate service issue. No failed response was converted into empty success.

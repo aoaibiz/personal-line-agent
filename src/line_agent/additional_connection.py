@@ -104,6 +104,12 @@ def invoke(store, command, owner, *, display=None, **params):
         "note_create",
         "note_update",
         "note_delete",
+        "note_like",
+        "note_comment",
+        "note_share",
+        "profile_image",
+        "pin_message",
+        "set_chat_bgm",
     ):
         raise ValueError("unsupported_additional_command")
     if not isinstance(owner, str) or not re.fullmatch(
@@ -270,6 +276,8 @@ def invoke(store, command, owner, *, display=None, **params):
                 raise AdditionalFailure("adapter", "incomplete_exit") from None
             if code != 0:
                 raise AdditionalFailure("adapter", "incomplete_exit")
+            if command == "login" and state:
+                store.put("additional_connection", "linejs_previous", state)
             store.put("additional_connection", "linejs", saved)
             store.put(
                 "additional_diagnostic",
@@ -318,7 +326,13 @@ def invoke(store, command, owner, *, display=None, **params):
                 dialog.wait(timeout=5)
 
 
-def connect(service):
+def connect(service, device=None):
+    if device is None:
+        device = (service.store.get("additional_connection", "linejs") or {}).get(
+            "device", "DESKTOPMAC"
+        )
+    if device not in {"DESKTOPMAC", "IOSIPAD"}:
+        raise ValueError("unsupported_additional_device")
     if service.paused():
         raise ValueError("agent_paused")
     if not available():
@@ -350,7 +364,9 @@ def connect(service):
             return api.tokens.mid, proof
 
         owner, proof = service.line.call(identity_proof)
-        result = invoke(service.store, "login", owner, display=show_auth, public_keys=proof)
+        result = invoke(
+            service.store, "login", owner, display=show_auth, public_keys=proof, device=device
+        )
         if result.get("connected") is not True:
             raise AdditionalFailure("authentication", "authentication_not_completed")
         # A successful QR exchange is not yet proof of reusable saved state.
@@ -372,7 +388,7 @@ def status(store):
     state = store.get("additional_connection", "linejs")
     return {
         "configured": bool(state),
-        "device": "DESKTOPMAC",
+        "device": (state or {}).get("device", "DESKTOPMAC"),
         "live_verified": False,
         "scope": "typed_additional_features",
         "last_check": store.get("additional_diagnostic", "last"),
@@ -395,7 +411,8 @@ def check(service):
             "stage": error.stage,
             "reason": error.reason,
             **error.diagnostic,
-            "owner_authentication_required": error.stage in {"authentication", "additional_authentication"}
+            "owner_authentication_required": error.stage
+            in {"authentication", "additional_authentication"}
             and error.diagnostic.get("line_code") == 8,
             "existing_connection_replaced": False,
         }

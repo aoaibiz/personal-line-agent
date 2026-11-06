@@ -250,14 +250,14 @@ def create_server(service: AgentService, public_url=None, port=8765, confirmatio
 
     @server.tool(annotations=local)
     @boundary
-    def additional_connection_start() -> dict[str, Any]:
+    def additional_connection_start(device: Literal["DESKTOPMAC", "IOSIPAD"] | None = None) -> dict[str, Any]:
         """所有者が指示した場合だけMacのQR画面で追加認証。既存受信接続は置換しない。
         リモートMCPでは利用不可。認証情報は応答に含めない。
         """
         if public_url:
             return {"ok": False, "reason": "local_authentication_required"}
         from .additional_connection import connect
-        return connect(service)
+        return connect(service, device)
 
     @server.tool(annotations=read)
     @boundary

@@ -142,15 +142,57 @@ class NoteUpdate(NoteTarget):
     text: Text
 
 
-PROFILE_ACTIONS = {"set_profile_name", "set_profile_status"}
+class ProfileImage(Strict):
+    mid: Mid
+    media_id: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class PinMessage(Strict):
+    group: Mid
+    message_id: MessageId
+
+
+class ChatBgm(Strict):
+    group: Mid
+    bgm_info: Annotated[str, Field(max_length=2000)]
+
+
+class NoteLike(NoteTarget):
+    reaction: Literal["1001", "1002", "1003", "1004", "1005", "1006"] = "1003"
+
+
+PROFILE_ACTIONS = {"set_profile_name", "set_profile_status", "set_profile_image"}
 
 
 MESSAGE_ACTIONS = {"react_message", "cancel_reaction", "mark_read", "unsend_message"}
-CONTACT_ACTIONS = {"mute_contact", "favorite_contact", "hide_contact", "block_contact", "unblock_contact"}
-GROUP_ACTIONS = {"kick_members", "leave_group", "note_create", "note_update", "note_delete"}
+CONTACT_ACTIONS = {
+    "mute_contact",
+    "favorite_contact",
+    "hide_contact",
+    "block_contact",
+    "unblock_contact",
+}
+GROUP_ACTIONS = {
+    "kick_members",
+    "leave_group",
+    "note_create",
+    "note_update",
+    "note_delete",
+    "note_like",
+    "note_comment",
+    "note_share",
+    "pin_message",
+    "set_chat_bgm",
+}
 
 
 ACTION_MODELS = {
+    "set_profile_image": ProfileImage,
+    "pin_message": PinMessage,
+    "set_chat_bgm": ChatBgm,
+    "note_like": NoteLike,
+    "note_comment": NoteUpdate,
+    "note_share": NoteTarget,
     "note_create": NoteCreate,
     "note_update": NoteUpdate,
     "note_delete": NoteTarget,
@@ -232,10 +274,24 @@ def action_context(kind, payload, recent_messages, contacts, group, profile=None
         return {"previous_name": rows[0].get("displayNameOverridden", "")}
     if kind in GROUP_ACTIONS:
         context = group_context(payload["group"])
-        if kind in {"note_update", "note_delete"}:
+        if kind in {"note_update", "note_delete", "note_like", "note_comment", "note_share"}:
             if note is None:
                 raise ValueError("note_read_unavailable")
             context["note"] = digest(note(payload["group"], payload["post_id"]))
+        if kind == "pin_message":
+            matches = [
+                m
+                for m in recent_messages(payload["group"], 100)
+                if str(m.get("id")) == payload["message_id"] and m.get("to") == payload["group"]
+            ]
+            if (
+                len(matches) != 1
+                or not isinstance(matches[0].get("text"), str)
+                or not 0 < len(matches[0]["text"]) <= 1000
+            ):
+                raise ValueError("pin_requires_recent_group_text")
+            context["announcement_text"] = matches[0]["text"]
+            context["message"] = digest(matches[0])
         return context
     if kind.startswith("send_"):
         context = {"conversation": digest(recent_messages(payload["to"], 20))}
@@ -583,7 +639,7 @@ class AgentService:
             "message", f"{payload['to']}:{payload['in_reply_to']}"
         ):
             raise ValueError("返信先はこの会話の取得済みメッセージを指定してください")
-        if kind == "send_media":
+        if kind in {"send_media", "set_profile_image"}:
             media = self.store.get("media", payload["media_id"])
             if not media:
                 raise ValueError("先にローカルのstage-mediaで添付を登録してください")

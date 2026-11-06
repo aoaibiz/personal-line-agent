@@ -180,3 +180,44 @@ def test_live_check_reports_actual_prefixed_device_rejection(service, monkeypatc
     assert not result["ok"] and not result["live_verified"]
     assert result["owner_authentication_required"] is True
     assert result["existing_connection_replaced"] is False
+
+
+def test_explicit_device_selection_and_previous_state_preserved(service, adapter):
+    old = {"owner": OWNER, "token": "synthetic-old", "storage": {}, "device": "DESKTOPMAC"}
+    service.store.put("additional_connection", "linejs", old)
+    script(
+        adapter,
+        "console.log(JSON.stringify({event:'result',result:{connected:true},state:{owner:r.owner,token:'synthetic-tablet',storage:{},device:r.device}}));",
+    )
+    assert a.invoke(service.store, "login", OWNER, device="IOSIPAD", display=lambda *args: None)[
+        "connected"
+    ]
+    assert service.store.get("additional_connection", "linejs_previous") == old
+    assert service.store.get("additional_connection", "linejs")["device"] == "IOSIPAD"
+    assert a.status(service.store)["device"] == "IOSIPAD"
+    with pytest.raises(ValueError, match="unsupported_additional_device"):
+        a.connect(service, "ANDROID")
+
+
+def test_reauthentication_defaults_to_saved_device(service, monkeypatch):
+    import base64
+
+    service.store.put("additional_connection", "linejs", {"device": "IOSIPAD"})
+    service.line.call = lambda f: f(
+        SimpleNamespace(
+            tokens=SimpleNamespace(mid=OWNER),
+            get_e2ee_public_keys_ex=lambda _: [
+                {"keyId": 1, "keyData": base64.b64encode(b"x" * 32).decode()}
+            ],
+        )
+    )
+    monkeypatch.setattr(a, "available", lambda: True)
+    calls = []
+
+    def invoke(*args, **kwargs):
+        calls.append(kwargs)
+        return {"connected": True}
+
+    monkeypatch.setattr(a, "invoke", invoke)
+    assert a.connect(service)["ok"]
+    assert calls[0]["device"] == "IOSIPAD"

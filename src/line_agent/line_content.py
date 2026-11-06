@@ -735,7 +735,14 @@ def note_get(service, chat, post_id):
 
 
 def execute_note(api, store, kind, payload, snapshot=None):
-    if kind not in {"note_create", "note_update", "note_delete"}:
+    if kind not in {
+        "note_create",
+        "note_update",
+        "note_delete",
+        "note_like",
+        "note_comment",
+        "note_share",
+    }:
         raise ValueError("unsupported_note_action")
     client = AdditionalContentClient(api, store)
     home = client.home(payload["group"])
@@ -751,6 +758,8 @@ def execute_note(api, store, kind, payload, snapshot=None):
             args["contents"] = snapshot["contents"]
     if "text" in payload:
         args["text"] = payload["text"]
+    if kind == "note_like":
+        args["reaction"] = payload["reaction"]
     response = client.invoke(kind, **args)
     if not isinstance(response, dict) or type(response.get("code")) is not int:
         raise ContentFailure("note_write", "unexpected_schema")

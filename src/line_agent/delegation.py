@@ -123,6 +123,11 @@ def candidate(service, data):
                 "note_create",
                 "note_update",
                 "note_delete",
+                "note_like",
+                "note_comment",
+                "note_share",
+                "pin_message",
+                "set_chat_bgm",
             }
         ):
             raise ValueError("グループ内だけの委任条件が不正です")
