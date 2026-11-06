@@ -1,0 +1,1 @@
+{"name":"personal-line-capability-adapter","private":true,"version":"0.1.0","type":"module","dependencies":{"@evex-dev/linejs":"3.6.4"},"engines":{"node":">=24.11.0 <25"},"overrides":{"thrift":"0.23.0"}}

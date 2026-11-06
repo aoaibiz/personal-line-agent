@@ -133,6 +133,9 @@ def stage(home, source):
     source = Path(source).absolute()
     names = ["pyproject.toml", "uv.lock", "README.md", "LICENSE"]
     names += [str(p.relative_to(source)) for p in sorted((source / "src/line_agent").glob("*.py"))]
+    has_additional = (source / "adapters/linejs/package.json").is_file()
+    if has_additional:
+        names += ["adapters/linejs/"+n for n in ("package.json","package-lock.json","worker.mjs","identity.mjs","notes.mjs","openchat.mjs","square-actions.mjs","call-links.mjs","profile-cover.mjs","birthday.mjs","liff-share.mjs","LICENSE.linejs.txt","LICENSE.CHRLINE.txt")]
     if len(names) < 10:
         raise RuntimeFailure("source_incomplete")
     files = {}
@@ -193,6 +196,21 @@ def stage(home, source):
         if result.returncode:
             write_json(target / "release.json", {"id": release, "state": "install_failed"})
             raise RuntimeFailure("release_install_failed")
+        if has_additional:
+            npm = find_executable("npm")
+            if not npm:
+                raise RuntimeFailure("additional_runtime_missing")
+            installed = subprocess.run([npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", str(target / "adapters/linejs")], stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=180,check=False,**hidden_subprocess_kwargs())
+            if installed.returncode:
+                write_json(target / "release.json", {"id": release, "state": "install_failed"})
+                raise RuntimeFailure("additional_install_failed")
+            node = find_executable("node")
+            if not node:
+                raise RuntimeFailure("additional_runtime_missing")
+            verified = subprocess.run([node, "--input-type=module", "-e", "const [major,minor]=process.versions.node.split('.').map(Number); if(major!==24||minor<11) process.exit(2); await import('@evex-dev/linejs'); await import('./identity.mjs');"], cwd=target/"adapters/linejs",stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30,check=False,**hidden_subprocess_kwargs())
+            if verified.returncode:
+                write_json(target / "release.json", {"id": release, "state": "install_failed"})
+                raise RuntimeFailure("additional_bootstrap_failed")
         if os.name == "nt":
             # uv uses the token's default owner when creating its launcher.
             # Normalize only this just-installed, trusted candidate; reused

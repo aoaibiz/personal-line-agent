@@ -72,3 +72,14 @@ def load_bytes(store, media_id):
     if len(data) != meta["size"] or hashlib.sha256(data).hexdigest() != meta["sha256"]:
         raise ValueError("添付の内容が一致しません")
     return bytes(data), meta
+
+
+def profile_image_type(data):
+    # Fixed image MIME; never infer profile content from an extension or URL.
+    if not isinstance(data, bytes) or not 8 <= len(data) <= 5 * 1024 * 1024:
+        raise ValueError("profile_image_size_invalid")
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    raise ValueError("profile_image_requires_png_or_jpeg")

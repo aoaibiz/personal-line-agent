@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "personal-line-agent"
-version = "0.5.1"
+version = "0.6.0"
 description = "Account-isolated LINE tools and durable relationship memory for MCP agents"
 readme = "README.md"
 license = "MIT"
@@ -19,6 +19,7 @@ dependencies = [
   "qrcode>=8,<9",
   "pywin32>=312; sys_platform == 'win32'",
   "tzdata>=2025.2,<2027",
+  "thrift==0.24.0",
 ]
 
 [dependency-groups]
@@ -36,8 +37,24 @@ ignore-vcs = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/line_agent"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"adapters/linejs/worker.mjs" = "line_agent/linejs/worker.mjs"
+"adapters/linejs/birthday.mjs" = "line_agent/linejs/birthday.mjs"
+"adapters/linejs/profile-cover.mjs" = "line_agent/linejs/profile-cover.mjs"
+"adapters/linejs/call-links.mjs" = "line_agent/linejs/call-links.mjs"
+"adapters/linejs/liff-share.mjs" = "line_agent/linejs/liff-share.mjs"
+"adapters/linejs/square-actions.mjs" = "line_agent/linejs/square-actions.mjs"
+"adapters/linejs/openchat.mjs" = "line_agent/linejs/openchat.mjs"
+"adapters/linejs/notes.mjs" = "line_agent/linejs/notes.mjs"
+"adapters/linejs/identity.mjs" = "line_agent/linejs/identity.mjs"
+"adapters/linejs/package.json" = "line_agent/linejs/package.json"
+"adapters/linejs/package-lock.json" = "line_agent/linejs/package-lock.json"
+"adapters/linejs/LICENSE.CHRLINE.txt" = "line_agent/linejs/LICENSE.CHRLINE.txt"
+"adapters/linejs/LICENSE.linejs.txt" = "line_agent/linejs/LICENSE.linejs.txt"
+
 [tool.hatch.build.targets.sdist]
-include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock"]
+exclude = ["**/node_modules/**", "**/__pycache__/**", ".venv/**", ".monitor/**"]
+include = ["src/line_agent/*.py", "tests/*.py", "tools/*.py", "docs/*.md", "docs/upgrade-20261105/*.md", "docs/upgrade-20261105/*.txt", "THIRD_PARTY_NOTICES.md", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "AGENTS.md", "pyproject.toml", "uv.lock", "adapters/linejs/*.mjs", "adapters/linejs/package*.json", "adapters/linejs/LICENSE.linejs.txt", "adapters/linejs/LICENSE.CHRLINE.txt"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

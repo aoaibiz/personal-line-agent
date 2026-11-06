@@ -1,6 +1,26 @@
+# Current candidate — 2026-11-06 OpenChat completion
+
+Implementation/configuration activated: immutable runtime `b243a0b61e6a94dd0365160c20856436a273ef1cb53ddcd202068bbf1cacaa5c`,56tools/51typed operations. Formal MCP public search40 → canonical identity resolution passed; joined communities54, own birthday-profile status, additional saved connection all succeeded. Original connection/E2EE/store integrity/receiver listening preserved; uncertain operations3 unchanged. IOSIPAD/native Mac LINE coexistence was observed in the earlier same-day check. Regression454passed/13skipped, Node26passed, two independent final reviews passed. GitHub source595eae9 passed the complete macOS/Linux/Windows matrix in [run42154038749](https://github.com/aoaibiz/personal-line-agent/actions/runs/42154038749).
+
+[OpenChat command mapping and constraints](upgrade-20261105/OPENCHAT.md). New writes require actual owner-requested use; no unsolicited real sends/joins/invites/deletes were used as tests. Friend birthdays are optional and not provided. VOOM excluded following owner direction and official service retirement. Previous immutable runtime retained for code-only rollback. PR7 is updated; this is not a main-branch merge claim.
+
+## Historical checkpoints (superseded where the current candidate states otherwise)
+
+# 2026-11-06 additional-connection follow-up
+
+The additional desktop connection is restored and fresh-process reuse verified after owner QR authentication with the native Mac LINE app closed. The cause of prior LINE8 rejection is not proven; simultaneous native-app use is unverified. A live additional check and post-login reconnect verification now distinguish saved credentials from a working connection. Reviewed runtime `aa45d907…` is active, with49tools/27typed operations,416Python tests passed/13skipped and5Node tests passed. Album originals and OpenChat community/details reads passed through formal MCP after activation; original receiver listening and uncertain ledger3 preserved. See [verification](upgrade-20261105/VERIFICATION.md). Broader feature coverage remains explicitly incomplete.
+
+# 2026-11-06 runtime update
+
+0.6.0 core capability upgrade is active: actual album originals and the formerly failing historical video retrieved through the stable MCP; Note endpoint corrected and authoritative empty result verified. 46tools/27typed operations,408tests passed/13skipped,3Node tests. Existing connection and receiver preserved; broader optional families remain tracked in the coverage matrix. See [verification](upgrade-20261105/VERIFICATION.md).
+
+# Current upgrade: 0.6.0 — 2026-11-05
+
+Album originals were retrieved through the formal MCP path after deployment. See [verification and limitations](upgrade-20261105/VERIFICATION.md), [coverage](upgrade-20261105/COVERAGE.md) and [investigation](upgrade-20261105/INVESTIGATION.md). Historical release evidence follows and does not imply verification of new features.
+
 # Verification status — 2026-10-25
 
-Current source: **0.4.2 / bounded received image retrieval**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal use is allowed during initial installation, configuration and authentication; after setup, ordinary operations and backend updates are performed by the owner agent. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
+Current source: **0.4.2 / bounded received image retrieval**. This is an engineering verification record, not a guarantee for all accounts. The existing macOS real-account results remain recorded below; Windows results are scoped separately. Phone-only forced reauthentication remains unverified. Human terminal work is not required, including installation, configuration and authentication; internal commands are performed by the owner agent, while owner QR/PIN confirmation uses a screen. See [FINAL-REVIEW.md](FINAL-REVIEW.md).
 
 ## 0.4.2 received image verification
 
@@ -55,10 +75,10 @@ These tests establish the tested paths and account conditions only. API presence
 
 ## Unverified / incomplete
 
-- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, and a new OS user/keychain setup. Receiver-service supervision and the observed OS restart are covered by the later dated records below. Initial terminal-based installation/authentication is allowed.
+- Smartphone-only forced LINE reauthentication and E2EE repair, fixed-entry process death/upgrade, and a new OS user/keychain setup. Receiver-service supervision and the observed OS restart are covered by the later dated records below. Human terminal operation is not an allowed completion requirement; authorized agents perform internal commands and owner authentication uses a screen.
 - A fresh user's complete authentication and smartphone-to-host setup for every supported host.
 - All LINE message/media types, every account configuration and future upstream behavior.
-- Full smartphone history retrieval, expired media restoration, OpenChat and calendar integration.
+- Full smartphone history retrieval, expired media restoration and calendar integration. OpenChat support is now covered by the current candidate above.
 - Unattended free-form replies; optional background inference currently produces drafts and separate explicit template policies are a different authority.
 - A production public HTTP deployment and cryptographic audit of the external protocol implementation.
 

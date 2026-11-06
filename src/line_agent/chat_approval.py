@@ -38,7 +38,7 @@ def preview(service, action):
     payload = action["payload"]
     ids = set(payload.get("members", []))
     ids.update(m["mid"] for m in payload.get("mentions", []))
-    ids.update(payload[k] for k in ("to", "mid", "group") if k in payload)
+    ids.update(payload[k] for k in ("to", "mid", "group", "contact_mid") if k in payload)
     from .identifiers import is_group
 
     people = sorted(mid for mid in ids if not is_group(mid))
@@ -57,7 +57,7 @@ def preview(service, action):
               "send_media": "添付送信", "create_group": "グループ作成",
               "rename_contact": "友だちの表示名変更", "rename_group": "グループ名変更",
               "invite": "グループへの招待", "add_friend": "友だち追加"}
-    lines = [f"LINE：{labels[action['kind']]}"]
+    lines = [f"LINE：{labels.get(action['kind'], action['kind'])}"]
     owner = (service.store.get("setting", "identity") or {}).get("mid")
     lines.append(f"利用アカウント：{owner or 'この接続のアカウント'}")
     for field, label in (("to", "宛先"), ("mid", "対象"), ("group", "グループ")):
@@ -81,6 +81,9 @@ def preview(service, action):
     if "media" in payload:
         lines.extend(["添付の送信形式：" + display_json(payload["media_type"]),
                       "添付：", display_json(payload["media"])])
+    for field in ("message_id", "post_id", "reaction", "enabled", "package_id", "sticker_id", "version", "latitude", "longitude", "title", "address", "contact_mid", "display_name"):
+        if field in payload:
+            lines.append(field + ": " + display_json(payload[field]))
     lines.append("この内容で実行します。拒否・キャンセルすると実行しません。")
     return "\n".join(lines)
 

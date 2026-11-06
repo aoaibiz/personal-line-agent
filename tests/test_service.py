@@ -32,7 +32,20 @@ class FakeLine:
         return {"chatMid": mid, "name": "試験", "members": {self.ids[0]: 1}}
 
     def execute(self, kind, payload, *, preflight):
-        preflight(action_context(kind, payload, self.recent_messages, self.contacts, self.group))
+        preflight(
+            action_context(
+                kind,
+                payload,
+                self.recent_messages,
+                self.contacts,
+                self.group,
+                profile=getattr(self, "public_profile", None),
+                note=getattr(self, "note_snapshot", None),
+                square=getattr(self, "square_snapshot", None),
+                call_link=getattr(self, "call_link_snapshot", None),
+                cover=getattr(self, "cover_snapshot", None),
+            )
+        )
         self.calls.append((kind, payload))
         if self.fail_send:
             raise TimeoutError("sent but acknowledgement lost")

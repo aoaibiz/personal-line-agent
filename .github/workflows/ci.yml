@@ -16,8 +16,12 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
         with:
           version: "0.10.10"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24.22.1"
       - run: uv sync --frozen --python 3.12
       - run: uv run --frozen pytest tests/test_received_images.py tests/test_windows_ownership.py::test_new_private_objects_reopen_with_actual_user_owner
+      - run: uv run --frozen pytest tests/test_additional_connection.py tests/test_square_large_frame.py
       - run: uv run --frozen pytest
       - run: uv run --frozen ruff check src tests
       - run: uv build --offline

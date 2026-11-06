@@ -30,6 +30,7 @@ def parser():
     login = commands.add_parser("login", help="本人が端末でQRとPINを確認してLINEへ接続")
     login.add_argument("--repair-e2ee", action="store_true",
                        help="本人のQR確認で暗号化メッセージ用の鍵を取得し直す")
+    commands.add_parser("capabilities", help="ツール仕様と操作型をJSONで列挙（通信なし）")
     commands.add_parser("status")
     commands.add_parser("doctor", help="実接続・保存の整合性を診断。秘密や本文は出さない")
     commands.add_parser("configure-operations", help="所有者/実行エージェント専用：通常操作の設定JSONを標準入力から反映")
@@ -116,6 +117,14 @@ def run(args):
             raise ValueError("操作の種類が必要です")
         payload = None if args.status else json.load(sys.stdin)
         return run_request(args.root, args.account, args.request_id, args.kind, payload, status_only=args.status)
+    if args.command == "capabilities":
+        import asyncio
+
+        from .server import create_server
+        server=create_server(None)
+        tools=asyncio.run(server.list_tools())
+        from .service import ACTION_MODELS
+        return {"version":__version__,"tools":[{"name":t.name,"description":t.description,"input_schema":t.inputSchema} for t in tools],"operations":{k:v.model_json_schema() for k,v in ACTION_MODELS.items()},"live_verified":False}
     try:
         store = open_store(args.root, args.account, create=args.command == "init")
     except Exception as error:
